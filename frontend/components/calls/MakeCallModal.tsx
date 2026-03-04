@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Phone, X } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
@@ -24,12 +25,30 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
     queryFn: () => api.get("/v1/agents"),
   });
 
+  const { data: phoneNumbers } = useQuery({
+    queryKey: ["phone-numbers"],
+    queryFn: () => api.get("/v1/phone-numbers"),
+  });
+
+  const importNumbers = useMutation({
+    mutationFn: () => api.post("/v1/phone-numbers/import", {}),
+    onSuccess: (data: any) => {
+      toast.success(
+        `Imported ${data.imported} number${data.imported !== 1 ? "s" : ""}. You can start a call now.`
+      );
+      qc.invalidateQueries({ queryKey: ["phone-numbers"] });
+    },
+    onError: () =>
+      toast.error(
+        "Failed to import. Add your Twilio credentials in Settings first."
+      ),
+  });
+
   const makeCall = useMutation({
     mutationFn: () =>
-      api.post("/v1/calls", {
+      api.post("/v1/calls/outbound", {
         agent_id: agentId,
-        to_number: toNumber,
-        metadata: {},
+        to_number: toNumber.trim(),
       }),
     onSuccess: () => {
       toast.success(`Call initiated to ${toNumber}`);
@@ -41,6 +60,11 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
     onError: (err: any) =>
       toast.error(err?.message || "Failed to start call"),
   });
+
+  const fromNumber = agentId
+    ? (phoneNumbers as any[])?.find((n: any) => n.agent_id === agentId)
+    : null;
+  const hasNoNumbers = !(phoneNumbers as any[])?.length;
 
   return (
     <AnimatePresence>
@@ -77,53 +101,118 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
               </div>
 
               <div className="px-6 py-5 space-y-4">
-                <div>
-                  <label className="block text-label text-text-secondary mb-1.5">
-                    Phone Number to Call
-                  </label>
-                  <input
-                    value={toNumber}
-                    onChange={(e) => setToNumber(e.target.value)}
-                    placeholder="+12025551234"
-                    className="w-full px-3 py-2.5 border border-border rounded-input text-body font-mono bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-all"
-                  />
-                  <p className="text-label text-text-muted mt-1">
-                    Include country code. Example: +12025551234
-                  </p>
-                </div>
+                {hasNoNumbers ? (
+                  <>
+                    <p className="text-body text-text-secondary">
+                      Import your own number first to make and receive calls.
+                      Add Twilio credentials in Settings, then import your numbers.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        variant="primary"
+                        className="w-full"
+                        onClick={() => importNumbers.mutate()}
+                        disabled={importNumbers.isPending}
+                      >
+                        {importNumbers.isPending ? "Importing…" : "Import from Twilio"}
+                      </Button>
+                      <Link href="/phone-numbers" onClick={onClose}>
+                        <Button variant="secondary" className="w-full">
+                          Go to Phone Numbers
+                        </Button>
+                      </Link>
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <Button variant="ghost" onClick={onClose}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-label text-text-secondary mb-1.5">
+                        Agent
+                      </label>
+                      <select
+                        value={agentId}
+                        onChange={(e) => setAgentId(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-border rounded-input text-body bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                      >
+                        <option value="">Select an agent...</option>
+                        {agents?.map((agent: any) => (
+                          <option key={agent.id} value={agent.id}>
+                            {agent.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="block text-label text-text-secondary mb-1.5">
-                    Agent
-                  </label>
-                  <select
-                    value={agentId}
-                    onChange={(e) => setAgentId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-border rounded-input text-body bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                  >
-                    <option value="">Select an agent...</option>
-                    {agents?.map((agent: any) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                    {agentId && (
+                      <div className="rounded-card bg-background/50 border border-border px-3 py-2.5">
+                        {fromNumber ? (
+                          <p className="text-label text-text-secondary">
+                            Calling from{" "}
+                            <span className="font-mono font-medium text-text-primary">
+                              {fromNumber.number}
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-label text-amber-600 dark:text-amber-400">
+                            This agent has no number assigned. Assign one in{" "}
+                            <Link href="/phone-numbers" className="underline font-medium">
+                              Phone Numbers
+                            </Link>
+                            .
+                          </p>
+                        )}
+                      </div>
+                    )}
 
-              <div className="px-6 py-4 border-t border-border flex gap-3">
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  onClick={() => makeCall.mutate()}
-                  disabled={!toNumber || !agentId || makeCall.isPending}
-                >
-                  <Phone size={14} className="mr-1.5" />
-                  {makeCall.isPending ? "Calling..." : "Start Call"}
-                </Button>
-                <Button variant="secondary" onClick={onClose}>
-                  Cancel
-                </Button>
+                    <div>
+                      <label className="block text-label text-text-secondary mb-1.5">
+                        Phone number to call
+                      </label>
+                      <input
+                        value={toNumber}
+                        onChange={(e) => setToNumber(e.target.value)}
+                        placeholder="+12025551234"
+                        className="w-full px-3 py-2.5 border border-border rounded-input text-body font-mono bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-all"
+                      />
+                      <p className="text-label text-text-muted mt-1">
+                        Include country code. Example: +12025551234
+                      </p>
+                    </div>
+
+                    <div className="px-6 py-4 -mx-6 -mb-5 border-t border-border flex gap-3 mt-4">
+                      <Button
+                        variant="primary"
+                        className="flex-1"
+                        onClick={() => {
+                          if (!fromNumber) {
+                            toast.error(
+                              "Assign a number to this agent in Phone Numbers first."
+                            );
+                            return;
+                          }
+                          makeCall.mutate();
+                        }}
+                        disabled={
+                          !toNumber.trim() ||
+                          !agentId ||
+                          !fromNumber ||
+                          makeCall.isPending
+                        }
+                      >
+                        <Phone size={14} className="mr-1.5" />
+                        {makeCall.isPending ? "Calling..." : "Start Call"}
+                      </Button>
+                      <Button variant="secondary" onClick={onClose}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
