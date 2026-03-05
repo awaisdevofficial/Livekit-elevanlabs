@@ -403,9 +403,13 @@ function SipSetupWizard() {
     },
   })
 
+  const defaultOriginationUri =
+    process.env.NEXT_PUBLIC_ORIGINATION_URI ??
+    "sip:resona_key@resona.duckdns.org:5060"
   const livekitSipUri =
-    status?.livekit_sip_uri ?? "sip:your_livekit_key@resona.duckdns.org"
-  const originationUri = status?.origination_uri ?? `${livekitSipUri}:5060`
+    status?.livekit_sip_uri ?? defaultOriginationUri.replace(/:5060$/, "")
+  const originationUri =
+    status?.origination_uri ?? defaultOriginationUri
 
   return (
     <div className="bg-surface border border-border rounded-xl shadow-card p-6">
