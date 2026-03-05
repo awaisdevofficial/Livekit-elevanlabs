@@ -2,9 +2,10 @@
 # SETUP INSTRUCTIONS FOR INBOUND CALLS
 # ---------------------------------------------------------------------------
 # 1. Go to Twilio Console → Phone Numbers → your number
-# 2. Set "A call comes in" webhook to: https://resona.duckdns.org/twilio/inbound
+# 2. Set "A call comes in" webhook to: {API_BASE_URL}/twilio/inbound
 # 3. Method: HTTP POST
-# 4. Set Status Callback to: https://resona.duckdns.org/twilio/status
+# 4. Set Status Callback to: {API_BASE_URL}/twilio/status
+# (API_BASE_URL is from .env, e.g. https://your-domain.com or https://your-domain.com/api)
 # ---------------------------------------------------------------------------
 # For outbound calls, ensure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and
 # TWILIO_FROM_NUMBER are set in .env

@@ -239,7 +239,7 @@ async def configure_sip(
 
     await db.commit()
 
-    livekit_sip_uri = f"sip:{settings.LIVEKIT_API_KEY}@resona.duckdns.org"
+    livekit_sip_uri = f"sip:{settings.LIVEKIT_API_KEY}@{settings.PUBLIC_HOST}"
     origination_uri = f"{livekit_sip_uri}:5060"
 
     return SIPStatusResponse(
@@ -265,7 +265,7 @@ async def get_sip_status(
     if not user_settings or not user_settings.sip_configured:
         return SIPStatusResponse(configured=False)
 
-    livekit_sip_uri = f"sip:{settings.LIVEKIT_API_KEY}@resona.duckdns.org"
+    livekit_sip_uri = f"sip:{settings.LIVEKIT_API_KEY}@{settings.PUBLIC_HOST}"
     origination_uri = f"{livekit_sip_uri}:5060"
 
     return SIPStatusResponse(

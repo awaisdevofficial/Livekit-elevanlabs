@@ -9,7 +9,7 @@ import toast from "react-hot-toast"
 
 import { PageHeader } from "@/components/shared/PageHeader"
 import { TestCallPanel } from "@/components/agents/TestCallPanel"
-import { api } from "@/lib/api"
+import { api, API_BASE_URL, getAuthToken } from "@/lib/api"
 import { cn } from "@/components/lib-utils"
 import { VoiceLibrary, Voice } from "@/components/agents/VoiceLibrary"
 
@@ -147,12 +147,8 @@ export default function AgentEditPage({
     }
     setPreviewLoading(true)
     try {
-      let token: string | null = null
-      if (typeof window !== "undefined" && (window as any).Clerk?.session) {
-        token = await (window as any).Clerk.session.getToken()
-      }
-      const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-      const response = await fetch(`${BASE_URL}/v1/voices/preview`, {
+      const token = await getAuthToken()
+      const response = await fetch(`${API_BASE_URL}/v1/voices/preview`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

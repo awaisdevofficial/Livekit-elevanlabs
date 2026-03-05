@@ -41,7 +41,7 @@ def _cors_origins() -> list[str]:
     }
     if settings.CORS_ORIGINS:
         for o in settings.CORS_ORIGINS.split(","):
-            o = o.strip()
+            o = o.strip().rstrip("/")
             if o:
                 origins.add(o)
     return list(origins)

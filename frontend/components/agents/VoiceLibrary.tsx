@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import { Headphones, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/Button"
-import { api } from "@/lib/api"
+import { api, API_BASE_URL, getAuthToken } from "@/lib/api"
 import { cn } from "@/components/lib-utils"
 
 export type VoiceProvider = "cartesia" | "deepgram" | "chatterbox"
@@ -82,12 +82,8 @@ export function VoiceLibrary({
     stopPreview()
     try {
       setPreviewingId(voice.id)
-      const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-      let token: string | null = null
-      if (typeof window !== "undefined" && (window as any).Clerk?.session) {
-        token = await (window as any).Clerk.session.getToken()
-      }
-      const res = await fetch(`${BASE_URL}/v1/voices/preview`, {
+      const token = await getAuthToken()
+      const res = await fetch(`${API_BASE_URL}/v1/voices/preview`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -345,16 +341,12 @@ function CloneVoiceSection() {
     if (!file || !name.trim()) return
     setLoading(true)
     try {
-      const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-      let token: string | null = null
-      if (typeof window !== "undefined" && (window as any).Clerk?.session) {
-        token = await (window as any).Clerk.session.getToken()
-      }
+      const token = await getAuthToken()
       const formData = new FormData()
       formData.append("name", name.trim())
       formData.append("file", file)
 
-      const res = await fetch(`${BASE_URL}/v1/voices/clone/cartesia`, {
+      const res = await fetch(`${API_BASE_URL}/v1/voices/clone/cartesia`, {
         method: "POST",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),

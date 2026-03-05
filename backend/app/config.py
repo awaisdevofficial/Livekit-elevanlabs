@@ -1,4 +1,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+
+
+def _strip_trailing_slash(v: str) -> str:
+    """Ensure URL has no trailing slash to avoid double slashes when concatenating."""
+    return v.rstrip("/") if isinstance(v, str) and v else v
 
 
 class Settings(BaseSettings):
@@ -35,16 +41,27 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
 
-    # App
+    # App / URLs
     # When DEV_MODE is true, certain strict checks (like auth)
     # are relaxed to make local development easier. Do NOT enable
     # this in production environments.
     DEV_MODE: bool = True
-    API_BASE_URL: str = "http://localhost:3000"
-    FRONTEND_URL: str = "http://localhost:8080"
-    # Comma-separated extra CORS origins (e.g. "https://resona.ai,https://resonaai.com")
+    # Public base URL of this API (no trailing slash). Used for Twilio webhooks, callbacks, agent worker.
+    # Local: http://localhost:8000  |  Production: https://your-domain.com or https://your-domain.com/api
+    API_BASE_URL: str = "http://localhost:8000"
+    # Public URL of the frontend app. Used for CORS and links.
+    FRONTEND_URL: str = "http://localhost:3000"
+    # Hostname for SIP/origination display (e.g. your-domain.com). No scheme, no port.
+    PUBLIC_HOST: str = "localhost"
+    # Extra CORS origins, comma-separated (e.g. https://app.example.com).
     CORS_ORIGINS: str = ""
+
     SECRET_KEY: str
+
+    @field_validator("API_BASE_URL", "FRONTEND_URL", mode="after")
+    @classmethod
+    def normalize_url(cls, v: str) -> str:
+        return _strip_trailing_slash(v)
 
 
 settings = Settings()

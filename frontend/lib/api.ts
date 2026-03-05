@@ -1,8 +1,10 @@
 import { supabase } from "./supabaseClient"
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const raw = typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL
+/** Base URL of the backend API (no trailing slash). Set NEXT_PUBLIC_API_URL in .env. */
+export const API_BASE_URL = raw ? String(raw).replace(/\/+$/, "") : "http://localhost:8000"
 
-async function getAuthToken(): Promise<string | null> {
+export async function getAuthToken(): Promise<string | null> {
   if (typeof window === "undefined") return null
   const {
     data: { session },
@@ -12,7 +14,7 @@ async function getAuthToken(): Promise<string | null> {
 
 async function request(method: string, path: string, body?: unknown) {
   const token = await getAuthToken()
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
