@@ -159,11 +159,15 @@ async def entrypoint(ctx: JobContext):
             "DEEPGRAM_API_KEY is required for STT and TTS. Set it in the environment."
         )
 
+    # Low-latency STT: interim results and short endpointing so barge-in works quickly
     stt = deepgram.STT(
         model=stt_model,
         api_key=deepgram_key,
         language=stt_language or "en-US",
         sample_rate=16000,
+        interim_results=True,
+        endpointing_ms=25,
+        no_delay=True,
     )
     llm = groq.LLM(
         model="llama-3.3-70b-versatile",
@@ -174,15 +178,18 @@ async def entrypoint(ctx: JobContext):
         api_key=deepgram_key,
     )
 
-    # Shorter min_interruption_duration so the agent stops when you start speaking (default 0.5s).
-    # turn_detection="vad" uses VAD to detect speech start/end for faster interrupt response.
+    # Barge-in: interrupt as soon as you start speaking (0.05s), use VAD for fast detection.
+    # min_interruption_words=0 so any speech interrupts; min_endpointing_delay=0.3 for quicker turn-taking.
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
         stt=stt,
         llm=llm,
         tts=tts,
         turn_detection="vad",
-        min_interruption_duration=0.2,
+        min_interruption_duration=0.05,
+        min_interruption_words=0,
+        min_endpointing_delay=0.3,
+        max_endpointing_delay=2.0,
     )
 
     @session.on("user_input_transcribed")
