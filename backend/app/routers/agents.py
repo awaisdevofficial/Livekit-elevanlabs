@@ -173,9 +173,8 @@ async def create_web_call_token(
     voice_id = agent.tts_voice_id
     if not voice_id:
         if provider == "deepgram":
-            voice_id = "aura-asteria-en"
+            voice_id = "aura-2-andromeda-en"
         else:
-            # Let Cartesia use its own default when id is "default"
             voice_id = "default"
 
     full_system_prompt = get_full_system_prompt(agent.system_prompt)
