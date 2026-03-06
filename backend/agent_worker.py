@@ -277,9 +277,12 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
+    # Default HTTP port 8081; override with LIVEKIT_AGENT_HTTP_PORT if something else uses 8081
+    _http_port = int(os.environ.get("LIVEKIT_AGENT_HTTP_PORT", "8081"))
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             prewarm_fnc=prewarm,
+            port=_http_port,
         )
     )

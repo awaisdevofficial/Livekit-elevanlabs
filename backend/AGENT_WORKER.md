@@ -9,9 +9,15 @@
   - `false_interruption_timeout=None` and `resume_false_interruption=False` so the agent does not auto-resume after you interrupt.
 - **Fast response:** `preemptive_generation=True` and short prompts keep replies quick. If the agent still doesn’t stop when you speak, check that only one worker is running and that the user’s mic is unmuted in the test call UI.
 
+**CLI:** Use `python agent_worker.py start` (production) or `python agent_worker.py dev` (development). There is no `run` command.
+
+**Port 8081 in use:** The worker’s HTTP server binds to 8081 by default. If you see “address already in use”, either:
+- Run only one worker: stop the systemd worker before running manually (`sudo systemctl stop resona-agent` then `python agent_worker.py start`), or
+- Use another port: `LIVEKIT_AGENT_HTTP_PORT=8082 python agent_worker.py start`
+
 Only **one** agent worker process should be running per LiveKit server. If you run it in both places, you get duplicate workers and odd behavior (e.g. jobs claimed by both, LLM/API errors under load).
 
-- **On the server (Ubuntu):** Run it **only** via systemd: `sudo systemctl start resona-agent`. Do **not** also run `python agent_worker.py run` in a terminal or venv on the same machine.
+- **On the server (Ubuntu):** Run it **only** via systemd: `sudo systemctl start resona-agent`. Do **not** also run `python agent_worker.py start` in a terminal or venv on the same machine.
 - **Local dev:** Run the worker in your venv only when you need to test; stop the server’s worker or use a different LiveKit dev server so only one worker is active.
 
 ## Check for duplicate workers (on server)
