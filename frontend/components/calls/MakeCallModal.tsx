@@ -234,8 +234,8 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
                         ) : (
                           <p className="text-label text-amber-600 dark:text-amber-400">
                             This agent has no number assigned. Assign one in{" "}
-                            <Link href="/phone-numbers" className="underline font-medium">
-                              Phone Numbers
+                            <Link href="/settings" className="underline font-medium">
+                              Settings → Integrations
                             </Link>
                             .
                           </p>
@@ -265,7 +265,7 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
                         onClick={() => {
                           if (!fromNumber) {
                             toast.error(
-                              "Assign a number to this agent in Phone Numbers first."
+                              "Assign a number to this agent in Settings → Integrations first."
                             );
                             return;
                           }

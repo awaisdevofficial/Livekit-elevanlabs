@@ -1,11 +1,12 @@
  "use client"
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle, Eye, EyeOff, XCircle } from "lucide-react"
+import { CheckCircle, Eye, EyeOff, Phone, RefreshCw, Trash2, XCircle } from "lucide-react"
 import toast from "react-hot-toast"
 
 import { PageHeader } from "@/components/shared/PageHeader"
 import { api } from "@/lib/api"
+import { cn } from "@/components/lib-utils"
 
 type Tab = "integrations" | "api-keys" | "profile" | "billing"
 
@@ -58,51 +59,6 @@ interface TelephonyStatus {
   assigned_agent_id: string | null
 }
 
-function AgentAssignmentDropdown({
-  assignedAgentId,
-  onAssigned,
-}: {
-  assignedAgentId?: string
-  onAssigned: () => void
-}) {
-  const { data: agents } = useQuery({
-    queryKey: ["agents"],
-    queryFn: () => api.get("/v1/agents") as Promise<{ id: string; name: string }[]>,
-  })
-  const assignAgent = useMutation({
-    mutationFn: (agentId: string) =>
-      api.patch("/v1/telephony/assign-agent", { agent_id: agentId }),
-    onSuccess: () => {
-      onAssigned()
-    },
-    onError: (err: any) => {
-      toast.error(err?.message ?? "Failed to assign agent")
-    },
-  })
-  return (
-    <div className="mb-4">
-      <label className="block text-xs font-medium text-muted mb-1.5 uppercase tracking-wide">
-        Agent handling inbound calls
-      </label>
-      <select
-        value={assignedAgentId ?? ""}
-        onChange={(e) => {
-          const id = e.target.value
-          if (id) assignAgent.mutate(id)
-        }}
-        className="w-full max-w-sm px-3 py-2 border border-border rounded-lg text-sm bg-surface focus:outline-none focus:border-brand"
-      >
-        <option value="">Select an agent...</option>
-        {agents?.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-}
-
 function IntegrationsTab() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
@@ -114,6 +70,18 @@ function IntegrationsTab() {
   const { data: status } = useQuery<TelephonyStatus>({
     queryKey: ["telephony-status"],
     queryFn: () => api.get("/v1/telephony/status"),
+  })
+
+  const { data: phoneNumbers = [] } = useQuery<{ id: string; number: string; friendly_name?: string; agent_id?: string }[]>({
+    queryKey: ["phone-numbers"],
+    queryFn: () => api.get("/v1/phone-numbers"),
+    enabled: !!status?.is_connected,
+  })
+
+  const { data: agents = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["agents"],
+    queryFn: () => api.get("/v1/agents"),
+    enabled: !!status?.is_connected,
   })
 
   const connect = useMutation({
@@ -130,6 +98,7 @@ function IntegrationsTab() {
       setAuthToken("")
       setPhoneNumber("")
       qc.invalidateQueries({ queryKey: ["telephony-status"] })
+      qc.invalidateQueries({ queryKey: ["phone-numbers"] })
     },
     onError: (err: any) => {
       const msg =
@@ -145,21 +114,65 @@ function IntegrationsTab() {
     onSuccess: () => {
       toast.success("Twilio disconnected")
       qc.invalidateQueries({ queryKey: ["telephony-status"] })
+      qc.invalidateQueries({ queryKey: ["phone-numbers"] })
     },
     onError: () => toast.error("Failed to disconnect"),
   })
 
+  const importNumbers = useMutation({
+    mutationFn: () => api.post("/v1/phone-numbers/import", {}),
+    onSuccess: (data: { imported?: number }) => {
+      toast.success(`Imported ${data?.imported ?? 0} number(s). Assign an agent below.`)
+      qc.invalidateQueries({ queryKey: ["phone-numbers"] })
+    },
+    onError: () => toast.error("Failed to import. Connect Twilio above first."),
+  })
+
+  const assignTelephonyAgent = useMutation({
+    mutationFn: (agentId: string) => api.patch("/v1/telephony/assign-agent", { agent_id: agentId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["telephony-status"] })
+    },
+    onError: () => toast.error("Failed to assign agent"),
+  })
+
+  const assignNumberAgent = useMutation({
+    mutationFn: ({ numberId, agentId }: { numberId: string; agentId: string | null }) =>
+      api.patch(`/v1/phone-numbers/${numberId}`, { agent_id: agentId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["phone-numbers"] })
+    },
+    onError: () => toast.error("Failed to assign agent"),
+  })
+
+  const releaseNumber = useMutation({
+    mutationFn: (numberId: string) => api.delete(`/v1/phone-numbers/${numberId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["phone-numbers"] })
+    },
+    onError: () => toast.error("Failed to release number"),
+  })
+
+  const primaryNumber = status?.phone_number ?? null
+  const importedOnly = phoneNumbers.filter((n) => n.number !== primaryNumber)
+  const hasPrimaryRow = !!primaryNumber
+  type Row = { id: string; number: string; agent_id?: string; isPrimary: boolean }
+  const allRows: Row[] = hasPrimaryRow
+    ? [{ id: "primary", number: primaryNumber, agent_id: status?.assigned_agent_id ?? undefined, isPrimary: true }, ...importedOnly.map((n) => ({ id: n.id, number: n.number, agent_id: n.agent_id, isPrimary: false }))]
+    : importedOnly.map((n) => ({ id: n.id, number: n.number, agent_id: n.agent_id, isPrimary: false }))
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
+      {/* Twilio connect card */}
       <div className="bg-surface border border-border rounded-xl shadow-card p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-base font-semibold text-primary">
+            <h3 className="text-base font-semibold text-primary flex items-center gap-2">
+              <Phone size={18} />
               Twilio & Phone
             </h3>
             <p className="text-sm text-muted mt-0.5">
-              Connect your own Twilio account and phone number. Resona will set up
-              the SIP trunk and LiveKit routing automatically.
+              Connect one Twilio account. Resona sets up the SIP trunk and routing. Add more numbers below and assign an agent to each.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -173,29 +186,11 @@ function IntegrationsTab() {
             ) : (
               <>
                 <XCircle size={16} className="text-red-400" />
-                <span className="text-sm text-red-500 font-medium">
-                  Not connected
-                </span>
+                <span className="text-sm text-red-500 font-medium">Not connected</span>
               </>
             )}
           </div>
         </div>
-
-        {status?.is_connected && status.phone_number && (
-          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 mb-4 text-sm">
-            <p className="text-muted">
-              Phone number:{" "}
-              <span className="font-mono text-primary">{status.phone_number}</span>
-            </p>
-          </div>
-        )}
-
-        {status?.is_connected && (
-          <AgentAssignmentDropdown
-            assignedAgentId={status.assigned_agent_id ?? undefined}
-            onAssigned={() => qc.invalidateQueries({ queryKey: ["telephony-status"] })}
-          />
-        )}
 
         {!showForm && (
           <div className="flex gap-3">
@@ -222,9 +217,7 @@ function IntegrationsTab() {
         {showForm && (
           <div className="space-y-3 mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
             <div>
-              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wide">
-                Account SID
-              </label>
+              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wide">Account SID</label>
               <input
                 value={accountSid}
                 onChange={(e) => setAccountSid(e.target.value)}
@@ -233,9 +226,7 @@ function IntegrationsTab() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wide">
-                Auth Token
-              </label>
+              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wide">Auth Token</label>
               <div className="relative">
                 <input
                   type={showToken ? "text" : "password"}
@@ -244,19 +235,13 @@ function IntegrationsTab() {
                   placeholder="Your Twilio auth token"
                   className="w-full px-3 py-2 pr-10 border border-border rounded-lg text-sm font-mono focus:outline-none focus:border-brand bg-surface"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(!showToken)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted"
-                >
+                <button type="button" onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted">
                   {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wide">
-                Phone Number (E.164)
-              </label>
+              <label className="block text-xs font-medium text-muted mb-1 uppercase tracking-wide">Phone number (E.164)</label>
               <input
                 type="tel"
                 value={phoneNumber}
@@ -264,32 +249,20 @@ function IntegrationsTab() {
                 placeholder="+12025551234"
                 className="w-full px-3 py-2 border border-border rounded-lg text-sm font-mono focus:outline-none focus:border-brand bg-surface"
               />
-              <p className="text-xs text-muted mt-1">
-                The Twilio number you want to use for calls. Must be in your account.
-              </p>
+              <p className="text-xs text-muted mt-1">Primary number for this account. Must be in your Twilio account.</p>
             </div>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => connect.mutate()}
-                disabled={
-                  !accountSid.trim() ||
-                  !authToken.trim() ||
-                  !phoneNumber.trim() ||
-                  connect.isPending
-                }
+                disabled={!accountSid.trim() || !authToken.trim() || !phoneNumber.trim() || connect.isPending}
                 className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark transition-colors disabled:opacity-50"
               >
                 {connect.isPending ? "Connecting…" : "Connect"}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setShowForm(false)
-                  setAccountSid("")
-                  setAuthToken("")
-                  setPhoneNumber("")
-                }}
+                onClick={() => { setShowForm(false); setAccountSid(""); setAuthToken(""); setPhoneNumber(""); }}
                 className="px-4 py-2 border border-border text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancel
@@ -298,6 +271,105 @@ function IntegrationsTab() {
           </div>
         )}
       </div>
+
+      {/* Numbers & agents: one table, import, assign agent per number */}
+      {status?.is_connected && (
+        <div className="bg-surface border border-border rounded-xl shadow-card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-semibold text-primary">Numbers & agents</h3>
+              <p className="text-sm text-muted mt-0.5">
+                Assign an agent to each number. Inbound calls to that number will be handled by the assigned agent.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => importNumbers.mutate()}
+              disabled={importNumbers.isPending}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium",
+                "bg-background border border-border text-primary hover:bg-background/80 transition-colors disabled:opacity-50"
+              )}
+            >
+              <RefreshCw size={14} className={importNumbers.isPending ? "animate-spin" : ""} />
+              {importNumbers.isPending ? "Importing…" : "Import more numbers"}
+            </button>
+          </div>
+
+          {allRows.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-background/30 py-8 px-4 text-center">
+              <p className="text-sm text-muted">No numbers yet. Connect Twilio above, then use &quot;Import more numbers&quot; to sync from your Twilio account.</p>
+              <button
+                type="button"
+                onClick={() => importNumbers.mutate()}
+                disabled={importNumbers.isPending}
+                className="mt-3 px-3 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-dark disabled:opacity-50"
+              >
+                {importNumbers.isPending ? "Importing…" : "Import numbers"}
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-background/50 border-b border-border">
+                    <th className="text-left py-3 px-4 font-medium text-muted">Number</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted">Agent</th>
+                    <th className="w-12 py-3 px-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {allRows.map((row) => (
+                    <tr key={row.id} className="border-b border-border last:border-0 hover:bg-background/30 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="font-mono text-primary">{row.number}</span>
+                        {row.isPrimary && (
+                          <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-brand/10 text-brand font-medium">Primary</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        <select
+                          value={row.isPrimary ? (status?.assigned_agent_id ?? "") : (row.agent_id ?? "")}
+                          onChange={(e) => {
+                            const id = e.target.value || null
+                            if (row.isPrimary) {
+                              if (id) assignTelephonyAgent.mutate(id)
+                            } else {
+                              assignNumberAgent.mutate({ numberId: row.id, agentId: id })
+                            }
+                          }}
+                          className="w-full max-w-[200px] px-3 py-2 border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                        >
+                          <option value="">No agent</option>
+                          {agents.map((a) => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        {row.isPrimary ? (
+                          <span className="text-xs text-muted">—</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Release ${row.number}?`)) releaseNumber.mutate(row.id)
+                            }}
+                            className="p-1.5 rounded text-muted hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Release number"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -199,15 +199,21 @@ async def entrypoint(ctx: JobContext):
             api_key=deepgram_key,
         )
 
+    # Turn detection: use STT so we react to speech quickly (Deepgram has endpointing_ms=25).
+    # Short AEC warmup so user can barge-in soon; tighter endpointing for faster turn-taking.
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
         stt=stt,
         llm=llm,
         tts=tts,
-        min_endpointing_delay=0.5,
-        max_endpointing_delay=2.5,
-        min_interruption_duration=0.3,
+        turn_detection="stt",
+        allow_interruptions=True,
+        min_endpointing_delay=0.25,
+        max_endpointing_delay=2.0,
+        min_interruption_duration=0.2,
         min_interruption_words=0,
+        aec_warmup_duration=0.5,
+        preemptive_generation=True,
     )
 
     @session.on("user_input_transcribed")

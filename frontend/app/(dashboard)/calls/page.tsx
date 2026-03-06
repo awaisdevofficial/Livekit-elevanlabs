@@ -421,9 +421,9 @@ export default function CallsPage() {
                     >
                       {importNumbers.isPending ? "Importing…" : "Import from Twilio"}
                     </Button>
-                    <Link href="/phone-numbers" onClick={() => setOutboundModal(false)}>
+                    <Link href="/settings" onClick={() => setOutboundModal(false)}>
                       <Button variant="secondary" className="w-full">
-                        Go to Phone Numbers
+                        Go to Settings → Integrations
                       </Button>
                     </Link>
                   </div>
@@ -469,8 +469,8 @@ export default function CallsPage() {
                           ) : (
                             <p className="text-label text-amber-600 dark:text-amber-400">
                               This agent has no number assigned. Assign one in{" "}
-                              <Link href="/phone-numbers" className="underline font-medium">
-                                Phone Numbers
+                              <Link href="/settings" className="underline font-medium">
+                                Settings → Integrations
                               </Link>
                               .
                             </p>
@@ -517,7 +517,7 @@ export default function CallsPage() {
                         );
                         if (!fromNumber) {
                           toast.error(
-                            "Assign a number to this agent in Phone Numbers first."
+                            "Assign a number to this agent in Settings → Integrations first."
                           );
                           return;
                         }
