@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +8,7 @@ from app.database import get_db
 from app.middleware.auth import verify_internal_secret
 from app.models.agent import Agent
 from app.models.knowledge_base import KnowledgeBase
+from app.models.telephony import UserTelephonyConfig
 from app.prompts import get_full_system_prompt
 
 
@@ -21,14 +24,38 @@ async def get_default_agent_config(
     Return the default agent configuration for a user, used by the agent worker
     to handle inbound SIP calls where the room is created by a dispatch rule.
 
-    We pick the first active agent (most recently created) for the user.
+    If the user has a telephony config with an assigned agent, use that agent.
+    Otherwise pick the first active agent (most recently created) for the user.
     """
-    result = await db.execute(
-        select(Agent)
-        .where(Agent.user_id == user_id, Agent.is_active.is_(True))
-        .order_by(Agent.created_at.desc())
+    user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+    agent = None
+
+    # Check if user has a specific agent assigned to their phone number
+    tel_result = await db.execute(
+        select(UserTelephonyConfig).where(
+            UserTelephonyConfig.user_id == user_uuid,
+            UserTelephonyConfig.assigned_agent_id.isnot(None),
+        )
     )
-    agent = result.scalars().first()
+    tel_config = tel_result.scalars().first()
+    if tel_config and tel_config.assigned_agent_id:
+        agent_result = await db.execute(
+            select(Agent).where(
+                Agent.id == tel_config.assigned_agent_id,
+                Agent.is_active.is_(True),
+            )
+        )
+        assigned_agent = agent_result.scalars().first()
+        if assigned_agent:
+            agent = assigned_agent
+
+    if not agent:
+        result = await db.execute(
+            select(Agent)
+            .where(Agent.user_id == user_uuid, Agent.is_active.is_(True))
+            .order_by(Agent.created_at.desc())
+        )
+        agent = result.scalars().first()
     if not agent:
         raise HTTPException(status_code=404, detail="No active agent found for user")
 

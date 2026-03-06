@@ -55,6 +55,52 @@ interface TelephonyStatus {
   outbound_trunk_id: string | null
   dispatch_rule_id: string | null
   is_active: boolean
+  assigned_agent_id: string | null
+}
+
+function AgentAssignmentDropdown({
+  assignedAgentId,
+  onAssigned,
+}: {
+  assignedAgentId?: string
+  onAssigned: () => void
+}) {
+  const { data: agents } = useQuery({
+    queryKey: ["agents"],
+    queryFn: () => api.get("/v1/agents") as Promise<{ id: string; name: string }[]>,
+  })
+  const assignAgent = useMutation({
+    mutationFn: (agentId: string) =>
+      api.patch("/v1/telephony/assign-agent", { agent_id: agentId }),
+    onSuccess: () => {
+      onAssigned()
+    },
+    onError: (err: any) => {
+      toast.error(err?.message ?? "Failed to assign agent")
+    },
+  })
+  return (
+    <div className="mb-4">
+      <label className="block text-xs font-medium text-muted mb-1.5 uppercase tracking-wide">
+        Agent handling inbound calls
+      </label>
+      <select
+        value={assignedAgentId ?? ""}
+        onChange={(e) => {
+          const id = e.target.value
+          if (id) assignAgent.mutate(id)
+        }}
+        className="w-full max-w-sm px-3 py-2 border border-border rounded-lg text-sm bg-surface focus:outline-none focus:border-brand"
+      >
+        <option value="">Select an agent...</option>
+        {agents?.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
 }
 
 function IntegrationsTab() {
@@ -142,6 +188,13 @@ function IntegrationsTab() {
               <span className="font-mono text-primary">{status.phone_number}</span>
             </p>
           </div>
+        )}
+
+        {status?.is_connected && (
+          <AgentAssignmentDropdown
+            assignedAgentId={status.assigned_agent_id ?? undefined}
+            onAssigned={() => qc.invalidateQueries({ queryKey: ["telephony-status"] })}
+          />
         )}
 
         {!showForm && (

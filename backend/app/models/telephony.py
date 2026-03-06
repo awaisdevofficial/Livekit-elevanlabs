@@ -59,6 +59,12 @@ class UserTelephonyConfig(Base):
     livekit_outbound_trunk_id = Column(String, nullable=True)
     livekit_dispatch_rule_id = Column(String, nullable=True)
 
+    assigned_agent_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("agents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

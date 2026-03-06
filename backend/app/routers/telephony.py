@@ -2,6 +2,8 @@
 Telephony API: connect/disconnect Twilio + LiveKit SIP, status, and outbound call.
 Uses UserTelephonyConfig (encrypted credentials) and current_user auth.
 """
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -10,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.middleware.auth import get_current_user
+from app.models.agent import Agent
 from app.models.telephony import UserTelephonyConfig
 from app.models.user import User
 from app.services.call_service import make_outbound_call
@@ -43,6 +46,11 @@ class StatusResponse(BaseModel):
     outbound_trunk_id: str | None
     dispatch_rule_id: str | None
     is_active: bool
+    assigned_agent_id: str | None
+
+
+class AssignAgentRequest(BaseModel):
+    agent_id: str
 
 
 class CallBody(BaseModel):
@@ -111,6 +119,7 @@ async def telephony_status(
             outbound_trunk_id=None,
             dispatch_rule_id=None,
             is_active=False,
+            assigned_agent_id=None,
         )
     return StatusResponse(
         is_connected=True,
@@ -119,7 +128,36 @@ async def telephony_status(
         outbound_trunk_id=config.livekit_outbound_trunk_id,
         dispatch_rule_id=config.livekit_dispatch_rule_id,
         is_active=config.is_active,
+        assigned_agent_id=str(config.assigned_agent_id) if config.assigned_agent_id else None,
     )
+
+
+@router.patch("/assign-agent")
+async def assign_agent(
+    body: AssignAgentRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set which agent handles inbound calls to the user's connected number."""
+    result = await db.execute(
+        select(UserTelephonyConfig).where(UserTelephonyConfig.user_id == user.id)
+    )
+    config = result.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=404, detail="No telephony config found")
+    agent_uuid = UUID(body.agent_id)
+    agent_result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_uuid,
+            Agent.user_id == user.id,
+            Agent.is_active.is_(True),
+        )
+    )
+    if not agent_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Agent not found or not yours")
+    config.assigned_agent_id = agent_uuid
+    await db.commit()
+    return {"assigned_agent_id": body.agent_id}
 
 
 @router.post("/call", response_model=CallResponse)
