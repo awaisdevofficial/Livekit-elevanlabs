@@ -15,22 +15,21 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     INTERNAL_SECRET: str
 
-    # Twilio
-    TWILIO_ACCOUNT_SID: str = ""
-    TWILIO_AUTH_TOKEN: str = ""
-    TWILIO_FROM_NUMBER: str = ""
+    # Twilio: credentials come from database (user settings), not .env
 
     # LiveKit
     LIVEKIT_URL: str
-    LIVEKIT_API_URL: str = ""  # HTTP URL for LiveKit API (SIP/twirp); e.g. https://host:7880
+    LIVEKIT_API_URL: str = ""  # HTTP URL for LiveKit API (SIP/twirp); e.g. http://127.0.0.1:7880
     LIVEKIT_API_KEY: str
     LIVEKIT_API_SECRET: str
     LIVEKIT_SIP_URI: str = ""
+    # SIP origination: IP where Twilio sends inbound SIP (e.g. 18.141.140.150)
+    SIP_SERVER_IP: str = "127.0.0.1"
 
-    # AI (Deepgram for STT + TTS; Groq for LLM)
-    OPENAI_API_KEY: str = ""
-    GROQ_API_KEY: str = ""
+    # AI: Deepgram (STT + optional TTS), Cartesia (TTS), Groq (LLM)
     DEEPGRAM_API_KEY: str = ""
+    CARTESIA_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
 
     # Supabase
     SUPABASE_URL: str

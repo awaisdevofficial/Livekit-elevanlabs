@@ -171,8 +171,8 @@ async def make_outbound_call(
     kb_entries = kb_result.scalars().all()
     knowledge_base = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
 
-    # Deepgram Aura 2 TTS
     voice_id = agent.tts_voice_id or "aura-2-andromeda-en"
+    tts_provider = agent.tts_provider or "deepgram"
 
     # Create room with metadata
     room_name = f"sip-{user.id}-{uuid.uuid4()}"
@@ -185,7 +185,7 @@ async def make_outbound_call(
             "first_message": agent.first_message
             or "Hi, how can I help you today?",
             "tts_voice_id": voice_id,
-            "tts_provider": "deepgram",
+            "tts_provider": tts_provider,
             "stt_model": agent.stt_model or "nova-2-general",
             "stt_language": agent.stt_language or "en-US",
             "silence_timeout": int(agent.silence_timeout or 30),
@@ -300,7 +300,12 @@ async def create_outbound_call(
     await db.commit()
     await db.refresh(call)
 
-    twilio_sid = await initiate_outbound_call(agent, user, body.to_number, str(call.id))
+    try:
+        twilio_sid = await initiate_outbound_call(
+            agent, user, body.to_number, str(call.id)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     call.twilio_sid = twilio_sid
     call.status = "ringing"
     await db.commit()
@@ -317,12 +322,10 @@ async def end_call(
     call = await db.get(Call, call_id)
     if not call or call.user_id != user.id:
         raise HTTPException(status_code=404, detail="Call not found")
-    if call.twilio_sid:
+    if call.twilio_sid and user.twilio_account_sid and user.twilio_auth_token:
         from twilio.rest import Client
 
-        from app.config import settings
-
-        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+        client = Client(user.twilio_account_sid, user.twilio_auth_token)
         client.calls(call.twilio_sid).update(status="completed")
     return {"status": "ok"}
 

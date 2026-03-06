@@ -6,9 +6,7 @@
 # 3. Method: HTTP POST
 # 4. Set Status Callback to: {API_BASE_URL}/twilio/status
 # (API_BASE_URL is from .env, e.g. https://your-domain.com or https://your-domain.com/api)
-# ---------------------------------------------------------------------------
-# For outbound calls, ensure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and
-# TWILIO_FROM_NUMBER are set in .env
+# Twilio credentials are stored per-user in the database (Settings → Phone).
 # ---------------------------------------------------------------------------
 
 from datetime import datetime
@@ -74,7 +72,7 @@ async def handle_inbound(request: Request, db: AsyncSession = Depends(get_db)):
     metadata = json.dumps({
         "system_prompt": full_system_prompt,
         "first_message": agent.first_message or "Hi, how can I help you today?",
-        "tts_provider": "deepgram",
+        "tts_provider": agent.tts_provider or "deepgram",
         "tts_voice_id": agent.tts_voice_id or "aura-2-andromeda-en",
         "stt_model": agent.stt_model or "nova-2-general",
         "stt_language": agent.stt_language or "en-US",

@@ -33,7 +33,7 @@ export default function PhoneNumbersPage() {
     },
     onError: () =>
       toast.error(
-        "Failed to import. Check your Twilio credentials in Settings."
+        "Failed to import. Connect Twilio in Settings first."
       ),
   });
 
@@ -65,13 +65,14 @@ export default function PhoneNumbersPage() {
     <div className="animate-route-in">
       <PageHeader
         title="Phone Numbers"
-        subtitle="Numbers are added automatically when you set up SIP in Settings. Assign an agent to each number."
+        subtitle="Connect Twilio in Settings; optionally import more numbers here. Assign an agent to each number."
       />
 
       <div className="bg-info/10 border border-info/20 rounded-card p-5 mb-6 text-body text-info font-medium leading-relaxed">
-        Your phone number is added automatically when you complete Twilio & SIP
-        setup in Settings. Optionally import additional numbers from Twilio below.
-        Assign an agent to each number — that agent will answer all calls to it.
+        Connect your Twilio account in Settings → Integrations; your number is
+        then ready for calls. You can optionally import additional numbers from
+        Twilio below. Assign an agent to each number — that agent will answer
+        calls to it.
       </div>
 
       <div className="flex justify-end mb-4">
@@ -102,7 +103,7 @@ export default function PhoneNumbersPage() {
         <div className="bg-surface rounded-card border border-border shadow-card">
           <EmptyState
             title="No phone numbers yet"
-            description="Complete Twilio & SIP setup in Settings — your number will appear here automatically. You can also import numbers from your Twilio account."
+            description="Connect Twilio in Settings → Integrations, or import numbers from your Twilio account below."
             action={{
               label: "Import from Twilio",
               onClick: () => importNumbers.mutate(),

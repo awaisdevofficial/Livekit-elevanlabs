@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.middleware.auth import verify_internal_secret
 from app.models.agent import Agent
+from app.models.knowledge_base import KnowledgeBase
 from app.prompts import get_full_system_prompt
 
 
@@ -33,7 +34,12 @@ async def get_default_agent_config(
 
     await db.refresh(agent)
 
-    # Minimal config required by the agent worker (STT + TTS + prompts)
+    kb_result = await db.execute(
+        select(KnowledgeBase).where(KnowledgeBase.agent_id == agent.id)
+    )
+    kb_entries = kb_result.scalars().all()
+    knowledge_base = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
+
     full_system_prompt = get_full_system_prompt(agent.system_prompt)
     return {
         "system_prompt": full_system_prompt,
@@ -42,5 +48,7 @@ async def get_default_agent_config(
         "tts_voice_id": agent.tts_voice_id or "aura-2-andromeda-en",
         "stt_model": agent.stt_model or "nova-2-general",
         "stt_language": agent.stt_language or "en-US",
+        "knowledge_base": knowledge_base,
+        "agent_speaks_first": True,
     }
 

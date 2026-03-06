@@ -5,6 +5,7 @@ from .knowledge_base import KnowledgeBase
 from .phone_number import PhoneNumber
 from .user import User
 from .user_settings import UserSettings
+from .telephony import UserTelephonyConfig
 from .voice_profile import VoiceProfile
 from .webhook import Webhook
 
@@ -18,5 +19,6 @@ __all__ = [
     "ApiKey",
     "VoiceProfile",
     "UserSettings",
+    "UserTelephonyConfig",
 ]
 

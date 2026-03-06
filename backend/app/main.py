@@ -14,6 +14,7 @@ from app.routers import (
     knowledge_base,
     phone_numbers,
     settings as settings_router,
+    telephony,
     twilio_webhook,
     voices,
     webhooks,
@@ -77,6 +78,7 @@ app.include_router(
     tags=["Settings"],
 )
 app.include_router(voices.router, prefix="/v1/voices", tags=["Voices"])
+app.include_router(telephony.router, prefix="/v1/telephony", tags=["Telephony"])
 app.include_router(twilio_webhook.router, prefix="/twilio", tags=["Twilio"])
 app.include_router(analytics.router, prefix="/v1/analytics", tags=["Analytics"])
 app.include_router(api_keys.router, prefix="/v1/api-keys", tags=["API Keys"])

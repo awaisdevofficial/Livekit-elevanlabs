@@ -10,6 +10,12 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 
+interface TelephonyStatus {
+  is_connected: boolean;
+  phone_number: string | null;
+  is_active: boolean;
+}
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -20,14 +26,22 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
   const [toNumber, setToNumber] = useState("");
   const [agentId, setAgentId] = useState("");
 
+  const { data: telephonyStatus } = useQuery<TelephonyStatus>({
+    queryKey: ["telephony-status"],
+    queryFn: () => api.get("/v1/telephony/status"),
+    enabled: isOpen,
+  });
+
   const { data: agents } = useQuery({
     queryKey: ["agents"],
     queryFn: () => api.get("/v1/agents"),
+    enabled: isOpen,
   });
 
   const { data: phoneNumbers } = useQuery({
     queryKey: ["phone-numbers"],
     queryFn: () => api.get("/v1/phone-numbers"),
+    enabled: isOpen,
   });
 
   const importNumbers = useMutation({
@@ -40,11 +54,26 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
     },
     onError: () =>
       toast.error(
-        "Failed to import. Add your Twilio credentials in Settings first."
+        "Failed to import. Connect Twilio in Settings first."
       ),
   });
 
-  const makeCall = useMutation({
+  const makeTelephonyCall = useMutation({
+    mutationFn: () =>
+      api.post("/v1/telephony/call", {
+        to_phone_number: toNumber.trim(),
+      }),
+    onSuccess: () => {
+      toast.success(`Call initiated to ${toNumber}`);
+      qc.invalidateQueries({ queryKey: ["calls"] });
+      setToNumber("");
+      onClose();
+    },
+    onError: (err: any) =>
+      toast.error(err?.message || "Failed to start call"),
+  });
+
+  const makeOutboundCall = useMutation({
     mutationFn: () =>
       api.post("/v1/calls/outbound", {
         agent_id: agentId,
@@ -61,6 +90,9 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
       toast.error(err?.message || "Failed to start call"),
   });
 
+  const useTelephony = Boolean(
+    telephonyStatus?.is_connected && telephonyStatus?.is_active
+  );
   const fromNumber = agentId
     ? (phoneNumbers as any[])?.find((n: any) => n.agent_id === agentId)
     : null;
@@ -101,28 +133,58 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
               </div>
 
               <div className="px-6 py-5 space-y-4">
-                {hasNoNumbers ? (
+                {useTelephony ? (
                   <>
                     <p className="text-body text-text-secondary">
-                      Import your own number first to make and receive calls.
-                      Add Twilio credentials in Settings, then import your numbers.
+                      Call from your connected number{" "}
+                      <span className="font-mono font-medium text-text-primary">
+                        {telephonyStatus?.phone_number ?? ""}
+                      </span>
                     </p>
-                    <div className="flex flex-col gap-2">
+                    <div>
+                      <label className="block text-label text-text-secondary mb-1.5">
+                        Phone number to call
+                      </label>
+                      <input
+                        value={toNumber}
+                        onChange={(e) => setToNumber(e.target.value)}
+                        placeholder="+12025551234"
+                        className="w-full px-3 py-2.5 border border-border rounded-input text-body font-mono bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-all"
+                      />
+                      <p className="text-label text-text-muted mt-1">
+                        E.164 format with country code
+                      </p>
+                    </div>
+                    <div className="px-6 py-4 -mx-6 -mb-5 border-t border-border flex gap-3 mt-4">
                       <Button
                         variant="primary"
-                        className="w-full"
-                        onClick={() => importNumbers.mutate()}
-                        disabled={importNumbers.isPending}
+                        className="flex-1"
+                        onClick={() => makeTelephonyCall.mutate()}
+                        disabled={
+                          !toNumber.trim() || makeTelephonyCall.isPending
+                        }
                       >
-                        {importNumbers.isPending ? "Importing…" : "Import from Twilio"}
+                        <Phone size={14} className="mr-1.5" />
+                        {makeTelephonyCall.isPending ? "Calling…" : "Start Call"}
                       </Button>
-                      <Link href="/phone-numbers" onClick={onClose}>
-                        <Button variant="secondary" className="w-full">
-                          Go to Phone Numbers
+                      <Button variant="secondary" onClick={onClose}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </>
+                ) : hasNoNumbers ? (
+                  <>
+                    <p className="text-body text-text-secondary">
+                      Connect your Twilio account and phone number in Settings to
+                      make and receive calls. Resona will set up everything
+                      automatically.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <Link href="/settings" onClick={onClose}>
+                        <Button variant="primary" className="w-full">
+                          Connect Twilio in Settings
                         </Button>
                       </Link>
-                    </div>
-                    <div className="flex justify-end pt-2">
                       <Button variant="ghost" onClick={onClose}>
                         Cancel
                       </Button>
@@ -195,17 +257,17 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
                             );
                             return;
                           }
-                          makeCall.mutate();
+                          makeOutboundCall.mutate();
                         }}
                         disabled={
                           !toNumber.trim() ||
                           !agentId ||
                           !fromNumber ||
-                          makeCall.isPending
+                          makeOutboundCall.isPending
                         }
                       >
                         <Phone size={14} className="mr-1.5" />
-                        {makeCall.isPending ? "Calling..." : "Start Call"}
+                        {makeOutboundCall.isPending ? "Calling…" : "Start Call"}
                       </Button>
                       <Button variant="secondary" onClick={onClose}>
                         Cancel

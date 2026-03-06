@@ -20,7 +20,7 @@ from livekit.agents.llm import function_tool
 from livekit.agents.voice import Agent, AgentSession
 from livekit.agents.voice.events import UserInputTranscribedEvent
 from livekit.agents.voice import room_io as voice_room_io
-from livekit.plugins import deepgram, silero, groq
+from livekit.plugins import cartesia, deepgram, silero, groq
 
 load_dotenv()
 
@@ -154,15 +154,13 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning(f"Failed to send transcript: {e}")
 
-    # STT + LLM + TTS: Deepgram for STT and TTS, Groq for LLM
+    # STT: Deepgram only
     deepgram_key = os.environ.get("DEEPGRAM_API_KEY", "").strip()
     if not deepgram_key:
-        raise RuntimeError(
-            "DEEPGRAM_API_KEY is required for STT and TTS. Set it in the environment."
-        )
+        raise RuntimeError("DEEPGRAM_API_KEY is required for STT. Set it in the environment.")
     groq_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not groq_key:
-        logger.warning("GROQ_API_KEY is not set; LLM calls will fail.")
+        raise RuntimeError("GROQ_API_KEY is required for the LLM. Set it in the environment.")
 
     # Low-latency STT: interim results and short endpointing so barge-in works quickly
     stt = deepgram.STT(
@@ -174,14 +172,32 @@ async def entrypoint(ctx: JobContext):
         endpointing_ms=25,
         no_delay=True,
     )
+    # LLM: Groq only
     llm = groq.LLM(
         model="llama-3.3-70b-versatile",
-        api_key=os.environ.get("GROQ_API_KEY"),
+        api_key=groq_key,
     )
-    tts = deepgram.TTS(
-        model=tts_model,
-        api_key=deepgram_key,
-    )
+    # TTS: Cartesia or Deepgram (from agent tts_provider)
+    tts_provider = (agent_config.get("tts_provider") or "deepgram").lower()
+    if tts_provider == "cartesia":
+        cartesia_key = os.environ.get("CARTESIA_API_KEY", "").strip()
+        if not cartesia_key:
+            raise RuntimeError(
+                "CARTESIA_API_KEY is required when tts_provider is cartesia. Set it in the environment."
+            )
+        # Cartesia voice id from config (e.g. UUID); default is Cartesia's Katie
+        cartesia_voice = tts_voice_id or "f786b574-daa5-4673-aa0c-cbe3e8534c02"
+        tts = cartesia.TTS(
+            model="sonic-3",
+            voice=cartesia_voice,
+            api_key=cartesia_key,
+            sample_rate=24000,
+        )
+    else:
+        tts = deepgram.TTS(
+            model=tts_model,
+            api_key=deepgram_key,
+        )
 
     # Session: default AEC warmup (3s) and interruption (0.5s) for stable TTS/STT.
     # Shorter warmup (1s) and interrupt threshold (0.3s) for better barge-in without breaking pipeline.

@@ -59,6 +59,11 @@ export default function CallsPage() {
     queryFn: () => api.get("/v1/phone-numbers"),
   });
 
+  const { data: telephonyStatus } = useQuery({
+    queryKey: ["telephony-status"],
+    queryFn: () => api.get("/v1/telephony/status"),
+  });
+
   const importNumbers = useMutation({
     mutationFn: () => api.post("/v1/phone-numbers/import", {}),
     onSuccess: (data: any) => {
@@ -145,15 +150,15 @@ export default function CallsPage() {
         }
       />
 
-      {!phoneNumbersLoading && !(phoneNumbers as any[])?.length && (
+      {!phoneNumbersLoading && !telephonyStatus?.is_connected && !(phoneNumbers as any[])?.length && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-card p-4 mb-6 text-body text-amber-800 dark:text-amber-200">
-          <p className="font-medium mb-1">Import your own number first</p>
+          <p className="font-medium mb-1">Connect your phone number</p>
           <p className="text-text-secondary text-sm">
-            To make outbound calls and receive inbound calls, add your Twilio credentials in Settings, then import your numbers in{" "}
-            <Link href="/phone-numbers" className="underline font-medium text-brand hover:no-underline">
-              Phone Numbers
+            To make and receive calls, connect your Twilio account and number in{" "}
+            <Link href="/settings" className="underline font-medium text-brand hover:no-underline">
+              Settings → Integrations
             </Link>
-            .
+            . Resona will set up the SIP trunk and routing automatically.
           </p>
         </div>
       )}
