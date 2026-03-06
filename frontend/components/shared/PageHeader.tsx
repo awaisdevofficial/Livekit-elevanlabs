@@ -13,22 +13,18 @@ export function PageHeader({ title, subtitle, actions, className }: Props) {
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-6 mb-8 flex-wrap",
+        "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6",
         className
       )}
     >
-      <div className="min-w-0">
-        <h1 className="text-page-title text-text-primary tracking-tight">
-          {title}
-        </h1>
+      <div>
+        <h1 className="text-2xl font-semibold text-white">{title}</h1>
         {subtitle && (
-          <p className="text-body text-text-secondary mt-1.5 leading-relaxed max-w-2xl">
-            {subtitle}
-          </p>
+          <p className="text-sm text-white/50 mt-1">{subtitle}</p>
         )}
       </div>
       {actions && (
-        <div className="flex items-center gap-3 flex-shrink-0">{actions}</div>
+        <div className="flex items-center gap-3">{actions}</div>
       )}
     </div>
   );

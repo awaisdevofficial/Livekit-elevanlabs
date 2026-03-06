@@ -22,32 +22,45 @@ export function NavItem({
 }: Props) {
   const pathname = usePathname();
   const isActive =
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+    href === "/"
+      ? pathname === "/"
+      : pathname === href || pathname.startsWith(href + "/");
+
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/60",
+          "hover:bg-white/5 hover:text-white transition-all duration-200",
+          collapsed && "justify-center"
+        )}
+      >
+        <Icon size={18} />
+        {!collapsed && <span>{label}</span>}
+      </a>
+    );
+  }
 
   return (
     <Link
       href={href}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noopener noreferrer" : undefined}
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium",
-        "transition-all duration-150 cursor-pointer relative",
-        "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:rounded-r-full before:transition-all duration-200",
+        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
         isActive
-          ? "text-white bg-white/10 before:bg-brand before:h-5 before:opacity-100"
-          : "text-[#A0A0B8] hover:text-white hover:bg-white/5 before:opacity-0 before:h-0",
-        collapsed && "justify-center px-2"
+          ? "bg-white/10 text-white shadow-[inset_2px_0_0_#4DFFCE]"
+          : "text-white/60 hover:bg-white/5 hover:text-white",
+        collapsed && "justify-center"
       )}
+      title={collapsed ? label : undefined}
     >
       <Icon
         size={18}
-        strokeWidth={1.8}
-        className={cn(
-          "shrink-0",
-          isActive ? "text-brand" : "text-[#A0A0B8] group-hover:text-white"
-        )}
+        className={cn(isActive ? "text-[#4DFFCE]" : "")}
       />
-      {!collapsed && <span className="truncate">{label}</span>}
+      {!collapsed && <span>{label}</span>}
     </Link>
   );
 }

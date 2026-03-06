@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bot, Clock, DollarSign, Phone } from "lucide-react";
+import { ArrowRight, Bot, Clock, DollarSign, Phone } from "lucide-react";
 
 import { MetricCard } from "@/components/analytics/MetricCard";
 import { CallVolumeChart } from "@/components/analytics/CallVolumeChart";
@@ -26,25 +26,30 @@ export default function DashboardPage() {
   const { data: summary } = useQuery({
     queryKey: ["analytics-summary"],
     queryFn: () => api.get("/v1/analytics/summary"),
-  })
+  });
 
   const { data: timeSeries } = useQuery({
     queryKey: ["analytics-time"],
     queryFn: () => api.get("/v1/analytics/calls-over-time"),
-  })
+  });
 
   const { data: recentCalls } = useQuery({
     queryKey: ["recent-calls"],
     queryFn: () => api.get("/v1/calls?limit=10"),
-  })
+  });
 
   const { data: agents } = useQuery({
     queryKey: ["agents"],
     queryFn: () => api.get("/v1/agents"),
-  })
+  });
+
+  const summaryData = summary as { total_calls?: number; total_minutes?: number; total_cost_cents?: number } | undefined;
+  const timeSeriesData = (timeSeries as { date: string; count?: number; calls?: number }[]) ?? [];
+  const recentCallsList = ((recentCalls as any[]) ?? []).slice(0, 5);
+  const agentsList = (agents as any[]) ?? [];
 
   return (
-    <div className="animate-route-in">
+    <div className="animate-fade-in">
       <PageHeader
         title="Dashboard"
         subtitle="Overview of your voice AI activity"
@@ -60,65 +65,60 @@ export default function DashboardPage() {
               size="md"
               onClick={() => setCallModalOpen(true)}
             >
+              <Phone size={16} />
               Make a Call
             </Button>
           </>
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <MetricCard
           title="Total Calls"
-          value={summary?.total_calls ?? 0}
+          value={summaryData?.total_calls ?? 0}
           icon={Phone}
-          iconBg="bg-brand/10"
-          iconColor="text-brand"
+          iconColor="#4DFFCE"
           trend={{ value: "+12%", positive: true }}
           subtitle="this month"
         />
         <MetricCard
           title="Minutes Used"
-          value={summary?.total_minutes ?? 0}
+          value={summaryData?.total_minutes ?? 0}
           icon={Clock}
-          iconBg="bg-info/10"
-          iconColor="text-info"
+          iconColor="#60A5FA"
           subtitle="of 100 min limit"
         />
         <MetricCard
           title="Active Agents"
-          value={Array.isArray(agents) ? agents.length : 0}
+          value={Array.isArray(agentsList) ? agentsList.length : 0}
           icon={Bot}
-          iconBg="bg-success/10"
-          iconColor="text-success"
+          iconColor="#34D399"
           subtitle="configured"
         />
         <MetricCard
           title="Total Cost"
-          value={summary?.total_cost_cents ?? 0}
+          value={summaryData?.total_cost_cents ?? 0}
           icon={DollarSign}
-          iconBg="bg-warning/10"
-          iconColor="text-warning"
+          iconColor="#FBBF24"
           format={(v) => `$${(v / 100).toFixed(2)}`}
           subtitle="this month"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-3 bg-surface rounded-card border border-border shadow-card p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-section-title text-text-primary tracking-tight">
-              Call Volume
-            </h2>
-            <div className="flex rounded-button border border-border bg-surface p-0.5 shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 glass-card p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-medium text-white">Call Volume</h3>
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-white/5">
               {RANGE_OPTIONS.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => setRange(opt.id)}
-                  className={`px-3 py-1.5 text-label font-medium rounded-md transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 focus-visible:ring-inset ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     range === opt.id
-                      ? "bg-brand text-white border-0"
-                      : "text-text-muted hover:text-text-primary hover:bg-background/50"
+                      ? "bg-white/10 text-white"
+                      : "text-white/50 hover:text-white"
                   }`}
                 >
                   {opt.label}
@@ -126,21 +126,20 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          <CallVolumeChart data={(timeSeries as any[]) ?? []} />
+          <CallVolumeChart data={timeSeriesData} />
         </div>
-        <div className="lg:col-span-2 bg-surface rounded-card border border-border shadow-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-section-title text-text-primary tracking-tight">
-              Recent Calls
-            </h2>
+        <div className="glass-card p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-medium text-white">Recent Calls</h3>
             <Link
               href="/calls"
-              className="text-label font-medium text-brand hover:text-brand-dark transition-colors"
+              className="text-sm text-[#4DFFCE] hover:underline flex items-center gap-1"
             >
-              View all →
+              View all
+              <ArrowRight size={14} />
             </Link>
           </div>
-          <RecentCallsList calls={((recentCalls as any[]) ?? []).slice(0, 5)} />
+          <RecentCallsList calls={recentCallsList} />
         </div>
       </div>
 
@@ -156,24 +155,40 @@ function RecentCallsList({ calls }: { calls: any[] }) {
   if (!calls.length) {
     return (
       <div className="py-12 text-center">
-        <p className="text-body text-text-muted">No calls yet</p>
+        <p className="text-sm text-white/50">No calls yet</p>
       </div>
     );
   }
   return (
-    <div className="space-y-0">
+    <div className="space-y-3">
       {calls.map((call) => (
         <div
           key={call.id}
-          className="flex items-center justify-between py-3 px-2 -mx-2 rounded-button border-b border-border last:border-0 hover:bg-background transition-colors"
+          className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition-colors"
         >
-          <div className="min-w-0">
-            <p className="text-body font-medium text-text-primary truncate">
-              {call.from_number || call.to_number || "—"}
-            </p>
-            <p className="text-label text-text-muted">{call.direction ?? "—"}</p>
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                call.direction === "inbound" ? "bg-blue-500/15" : "bg-purple-500/15"
+              }`}
+            >
+              <Phone
+                size={14}
+                className={
+                  call.direction === "inbound" ? "text-blue-400" : "text-purple-400"
+                }
+              />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">
+                {call.agent_name ?? call.from_number ?? call.to_number ?? "—"}
+              </p>
+              <p className="text-xs text-white/40">
+                {call.to_number ?? call.from_number ?? call.direction ?? "—"}
+              </p>
+            </div>
           </div>
-          <CallStatusBadge status={call.status} />
+          <CallStatusBadge status={call.status ?? "completed"} />
         </div>
       ))}
     </div>

@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import {
   BarChart2,
   BookOpen,
   Bot,
+  ChevronLeft,
+  ChevronRight,
   LayoutGrid,
   Phone,
   Settings,
@@ -25,30 +28,63 @@ const mainNav = [
 interface SidebarProps {
   className?: string;
   collapsed?: boolean;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onCollapseToggle?: () => void;
 }
 
-export function Sidebar({ className, collapsed }: SidebarProps) {
+export function Sidebar({
+  className,
+  collapsed,
+  isOpen,
+  onClose,
+  onCollapseToggle,
+}: SidebarProps) {
   return (
     <aside
       className={cn(
-        "w-sidebar shrink-0 h-screen bg-sidebar flex flex-col fixed left-0 top-0 z-30",
-        "transition-[width] duration-200 ease-out",
-        collapsed && "w-[72px]",
+        "fixed left-0 top-0 h-full z-50 bg-[#0B0D10] border-r border-white/[0.06]",
+        "transition-all duration-300 ease-in-out",
+        collapsed ? "w-[72px]" : "w-[260px]",
         className
       )}
     >
-      <div className="px-4 py-5 border-b border-white/5 flex items-center gap-3 min-w-0">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center shrink-0 shadow-card">
-          <span className="text-white font-bold text-sm">R</span>
+      <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#4DFFCE] to-[#2DD4A0] flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-bold text-[#07080A]">R</span>
+          </div>
+          {!collapsed && (
+            <span className="font-semibold text-white text-lg tracking-tight">
+              Resona
+            </span>
+          )}
         </div>
-        {!collapsed && (
-          <span className="text-lg font-bold text-white tracking-tight truncate">
-            Resona
-          </span>
-        )}
+
+        <button
+          type="button"
+          onClick={onCollapseToggle}
+          className="hidden lg:flex w-6 h-6 items-center justify-center rounded-md hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? (
+            <ChevronRight size={14} />
+          ) : (
+            <ChevronLeft size={14} />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="lg:hidden w-8 h-8 flex items-center justify-center rounded-md hover:bg-white/10 text-white/50"
+          aria-label="Close menu"
+        >
+          <ChevronLeft size={18} />
+        </button>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto min-h-0">
+      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto min-h-0">
         {mainNav.map((item) => (
           <NavItem
             key={item.href}
@@ -60,15 +96,31 @@ export function Sidebar({ className, collapsed }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="px-3 pb-4 pt-3 border-t border-white/5 space-y-0.5">
-        <NavItem href="/settings" label="Settings" icon={Settings} collapsed={collapsed} />
+      <div className="p-3 border-t border-white/[0.06] space-y-1">
         <NavItem
-          href="https://docs.resona.ai"
-          label="Documentation"
-          icon={BookOpen}
-          external
+          href="/settings"
+          label="Settings"
+          icon={Settings}
           collapsed={collapsed}
         />
+        <a
+          href="https://docs.resona.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/60",
+            "hover:bg-white/5 hover:text-white transition-all duration-200",
+            collapsed && "justify-center"
+          )}
+        >
+          <BookOpen size={18} />
+          {!collapsed && (
+            <>
+              <span>Documentation</span>
+              <span className="ml-auto opacity-50">↗</span>
+            </>
+          )}
+        </a>
         <UserFooter collapsed={collapsed} />
       </div>
     </aside>

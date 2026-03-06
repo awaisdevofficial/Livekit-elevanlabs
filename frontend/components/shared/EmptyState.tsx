@@ -6,18 +6,18 @@ interface Props {
   icon?: React.ReactNode;
   title: string;
   description: string;
-  action?: { label: string; onClick: () => void };
+  action?: React.ReactNode;
   className?: string;
 }
 
 const DefaultIcon = () => (
-  <div className="w-16 h-16 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center shadow-card">
+  <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto">
     <svg
       width="28"
       height="28"
       fill="none"
       viewBox="0 0 24 24"
-      className="text-brand"
+      className="text-white/40"
     >
       <path
         d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
@@ -40,26 +40,16 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center py-24 px-8 text-center",
+        "glass-card p-12 text-center",
         className
       )}
     >
       {icon ?? <DefaultIcon />}
-      <h3 className="text-section-title text-text-primary mt-6 mb-2 tracking-tight">
-        {title}
-      </h3>
-      <p className="text-body text-text-secondary max-w-sm leading-relaxed mb-6">
+      <h3 className="text-lg font-medium text-white mb-2 mt-6">{title}</h3>
+      <p className="text-sm text-white/50 max-w-sm mx-auto mb-6">
         {description}
       </p>
-      {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          className="px-5 py-2.5 bg-brand text-white text-body font-semibold rounded-button hover:bg-brand-dark transition-all duration-150 shadow-card cursor-pointer active:scale-95"
-        >
-          {action.label}
-        </button>
-      )}
+      {action}
     </div>
   );
 }

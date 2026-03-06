@@ -3,6 +3,7 @@
 import {
   Area,
   AreaChart,
+  CartesianGrid,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,51 +13,66 @@ import { format, parseISO } from "date-fns";
 
 interface DataPoint {
   date: string;
-  count: number;
+  count?: number;
+  calls?: number;
 }
 
 export function CallVolumeChart({ data }: { data: DataPoint[] }) {
+  const dataKey = data.length && (data[0].calls !== undefined || (data[0] as any).calls !== undefined) ? "calls" : "count";
+
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-        <defs>
-          <linearGradient id="callGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#6C63FF" stopOpacity={0.25} />
-            <stop offset="95%" stopColor="#6C63FF" stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 11, fill: "#9CA3AF" }}
-          tickFormatter={(v) => format(parseISO(v), "MMM d")}
-          interval="preserveStartEnd"
-        />
-        <YAxis hide />
-        <Tooltip
-          contentStyle={{
-            background: "#FFFFFF",
-            border: "1px solid #E5E4F0",
-            borderRadius: 8,
-            fontSize: 12,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-          }}
-          labelFormatter={(v) =>
-            format(parseISO(v as string), "MMMM d, yyyy")
-          }
-          formatter={(v: number) => [v, "Calls"]}
-        />
-        <Area
-          type="monotone"
-          dataKey="count"
-          stroke="#6C63FF"
-          strokeWidth={2}
-          fill="url(#callGradient)"
-          dot={false}
-          activeDot={{ r: 4, fill: "#6C63FF", strokeWidth: 0 }}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div className="h-[280px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+          <defs>
+            <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#4DFFCE" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#4DFFCE" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <XAxis
+            dataKey="date"
+            stroke="rgba(255,255,255,0.3)"
+            fontSize={12}
+            tickLine={false}
+            tickFormatter={(v) => {
+              try {
+                if (typeof v === "string" && v.length >= 10) return format(parseISO(v), "MMM d");
+              } catch {}
+              return v;
+            }}
+          />
+          <YAxis
+            stroke="rgba(255,255,255,0.3)"
+            fontSize={12}
+            tickLine={false}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "rgba(14,17,22,0.95)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "12px",
+              color: "#fff",
+            }}
+            labelFormatter={(v) => {
+              try {
+                if (typeof v === "string" && v.length >= 10) return format(parseISO(v), "MMMM d, yyyy");
+              } catch {}
+              return String(v);
+            }}
+            formatter={(v: number) => [v, "Calls"]}
+          />
+          <Area
+            type="monotone"
+            dataKey={dataKey}
+            stroke="#4DFFCE"
+            strokeWidth={2}
+            fillOpacity={1}
+            fill="url(#colorCalls)"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

@@ -128,46 +128,42 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
             className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-4"
           >
             <div
-              className="bg-surface rounded-2xl shadow-modal border border-border w-full max-w-md pointer-events-auto"
+              className="glass-card border-white/10 max-w-md w-full pointer-events-auto p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-6 py-5 border-b border-border">
-                <h2 className="text-section-title text-text-primary tracking-tight">
-                  Make a Call
-                </h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-white">Make a Call</h2>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-2 rounded-button text-text-muted hover:text-text-primary hover:bg-background transition-colors"
+                  className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="px-6 py-5 space-y-4">
+              <div className="space-y-4">
                 {useTelephony ? (
                   <>
-                    <p className="text-body text-text-secondary">
+                    <p className="text-sm text-white/70">
                       Call from your connected number{" "}
-                      <span className="font-mono font-medium text-text-primary">
+                      <span className="font-mono font-medium text-white">
                         {telephonyStatus?.phone_number ?? ""}
                       </span>
                     </p>
                     <div>
-                      <label className="block text-label text-text-secondary mb-1.5">
-                        Phone number to call
-                      </label>
+                      <label className="form-label">Phone number to call</label>
                       <input
                         value={toNumber}
                         onChange={(e) => setToNumber(e.target.value)}
                         placeholder="+12025551234"
-                        className="w-full px-3 py-2.5 border border-border rounded-input text-body font-mono bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-all"
+                        className="form-input font-mono"
                       />
-                      <p className="text-label text-text-muted mt-1">
+                      <p className="text-xs text-white/40 mt-1">
                         E.164 format with country code
                       </p>
                     </div>
-                    <div className="px-6 py-4 -mx-6 -mb-5 border-t border-border flex gap-3 mt-4">
+                    <div className="flex gap-3 pt-4">
                       <Button
                         variant="primary"
                         className="flex-1"
@@ -176,22 +172,22 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
                           !toNumber.trim() || makeTelephonyCall.isPending
                         }
                       >
-                        <Phone size={14} className="mr-1.5" />
+                        <Phone size={16} />
                         {makeTelephonyCall.isPending ? "Calling…" : "Start Call"}
                       </Button>
-                      <Button variant="secondary" onClick={onClose}>
+                      <Button variant="secondary" onClick={onClose} className="flex-1">
                         Cancel
                       </Button>
                     </div>
                   </>
                 ) : hasNoNumbers ? (
                   <>
-                    <p className="text-body text-text-secondary">
+                    <p className="text-sm text-white/70">
                       Connect your Twilio account and phone number in Settings to
                       make and receive calls. Resona will set up everything
                       automatically.
                     </p>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 pt-4">
                       <Link href="/settings" onClick={onClose}>
                         <Button variant="primary" className="w-full">
                           Connect Twilio in Settings
@@ -205,13 +201,11 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
                 ) : (
                   <>
                     <div>
-                      <label className="block text-label text-text-secondary mb-1.5">
-                        Agent
-                      </label>
+                      <label className="form-label">Agent</label>
                       <select
                         value={agentId}
                         onChange={(e) => setAgentId(e.target.value)}
-                        className="w-full px-3 py-2.5 border border-border rounded-input text-body bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                        className="form-input"
                       >
                         <option value="">Select an agent...</option>
                         {agents?.map((agent: any) => (
@@ -223,18 +217,18 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
                     </div>
 
                     {agentId && (
-                      <div className="rounded-card bg-background/50 border border-border px-3 py-2.5">
+                      <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
                         {fromNumber ? (
-                          <p className="text-label text-text-secondary">
+                          <p className="text-sm text-white/70">
                             Calling from{" "}
-                            <span className="font-mono font-medium text-text-primary">
+                            <span className="font-mono font-medium text-white">
                               {fromNumber.number}
                             </span>
                           </p>
                         ) : (
-                          <p className="text-label text-amber-600 dark:text-amber-400">
+                          <p className="text-sm text-amber-400">
                             This agent has no number assigned. Assign one in{" "}
-                            <Link href="/settings" className="underline font-medium">
+                            <Link href="/settings" className="underline font-medium text-[#4DFFCE]">
                               Settings → Integrations
                             </Link>
                             .
@@ -244,21 +238,19 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
                     )}
 
                     <div>
-                      <label className="block text-label text-text-secondary mb-1.5">
-                        Phone number to call
-                      </label>
+                      <label className="form-label">Phone number to call</label>
                       <input
                         value={toNumber}
                         onChange={(e) => setToNumber(e.target.value)}
                         placeholder="+12025551234"
-                        className="w-full px-3 py-2.5 border border-border rounded-input text-body font-mono bg-surface focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-all"
+                        className="form-input font-mono"
                       />
-                      <p className="text-label text-text-muted mt-1">
+                      <p className="text-xs text-white/40 mt-1">
                         Include country code. Example: +12025551234
                       </p>
                     </div>
 
-                    <div className="px-6 py-4 -mx-6 -mb-5 border-t border-border flex gap-3 mt-4">
+                    <div className="flex gap-3 pt-4">
                       <Button
                         variant="primary"
                         className="flex-1"
@@ -278,10 +270,10 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
                           makeOutboundCall.isPending
                         }
                       >
-                        <Phone size={14} className="mr-1.5" />
+                        <Phone size={16} />
                         {makeOutboundCall.isPending ? "Calling…" : "Start Call"}
                       </Button>
-                      <Button variant="secondary" onClick={onClose}>
+                      <Button variant="secondary" onClick={onClose} className="flex-1">
                         Cancel
                       </Button>
                     </div>
