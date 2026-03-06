@@ -104,10 +104,10 @@ async def entrypoint(ctx: JobContext):
                 logger.warning(f"Failed to fetch default agent config for user {user_id}: {e}")
 
         if not agent_config:
-            # Fallback config if we couldn't resolve a user/agent
+            # Fallback config if we couldn't resolve a user/agent (short first message for fast TTS start)
             agent_config = {
                 "system_prompt": "You are a helpful voice AI assistant.",
-                "first_message": "Hi, how can I help you today?",
+                "first_message": "Hi, how can I help?",
                 "tts_provider": "deepgram",
                 "tts_voice_id": "aura-2-andromeda-en",
             }
@@ -129,7 +129,7 @@ async def entrypoint(ctx: JobContext):
         system_prompt = base_system_prompt
     else:
         system_prompt = get_full_system_prompt(base_system_prompt)
-    first_message = agent_config.get("first_message", "Hi, how can I help you today?")
+    first_message = agent_config.get("first_message", "Hi, how can I help?")
 
     # Determine TTS/STT configuration from metadata
     stt_language = agent_config.get("stt_language", "en-US")
@@ -162,7 +162,7 @@ async def entrypoint(ctx: JobContext):
     if not groq_key:
         raise RuntimeError("GROQ_API_KEY is required for the LLM. Set it in the environment.")
 
-    # Low-latency STT: interim results and short endpointing so barge-in works quickly
+    # Low-latency STT: interim results, aggressive endpointing, VAD events for fast turn-taking
     stt = deepgram.STT(
         model=stt_model,
         api_key=deepgram_key,
@@ -171,8 +171,10 @@ async def entrypoint(ctx: JobContext):
         interim_results=True,
         endpointing_ms=25,
         no_delay=True,
+        vad_events=True,
+        filler_words=True,
     )
-    # LLM: Groq only
+    # LLM: Groq (streaming); keep responses short via prompt so TTS starts quickly
     llm = groq.LLM(
         model="llama-3.3-70b-versatile",
         api_key=groq_key,
@@ -291,7 +293,7 @@ async def entrypoint(ctx: JobContext):
         raise
 
     agent_speaks_first = agent_config.get("agent_speaks_first", True)
-    say_text = (first_message or "Hi, how can I help you today?").strip()
+    say_text = (first_message or "Hi, how can I help?").strip()
     if agent_speaks_first and say_text:
         try:
             await session.say(say_text, allow_interruptions=True)

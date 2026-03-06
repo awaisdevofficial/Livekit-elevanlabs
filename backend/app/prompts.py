@@ -1,5 +1,7 @@
 """Shared prompt constants used when building agent system prompts for the LLM."""
 
+REAL_TIME_VOICE_PROMPT = """This is a real-time voice call. Respond in 1–3 short sentences so the user hears you quickly. Never give long paragraphs or lists—say one thing, then pause. If you have more to say, the user can ask. Brief replies feel natural and keep the conversation flowing."""
+
 HUMAN_BEHAVIOR_PROMPT = """Speak exactly like a real human in a natural phone conversation. You are warm, casual, and genuine — never robotic, never scripted-sounding.
 
 How You Speak:
@@ -28,6 +30,6 @@ Your Tone: Warm. Curious. Real. Like a knowledgeable friend on a phone call. Mat
 
 
 def get_full_system_prompt(agent_system_prompt: str | None) -> str:
-    """Prepend human-behavior instructions to the agent's system prompt."""
+    """Prepend real-time voice + human-behavior instructions to the agent's system prompt."""
     base = agent_system_prompt or "You are a helpful voice AI assistant."
-    return HUMAN_BEHAVIOR_PROMPT + "\n\n" + base
+    return REAL_TIME_VOICE_PROMPT + "\n\n" + HUMAN_BEHAVIOR_PROMPT + "\n\n" + base
