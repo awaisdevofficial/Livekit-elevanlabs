@@ -65,14 +65,14 @@ class TwilioSetupService:
             logger.info("Added origination URI %s to trunk %s", sip_url, trunk_sid)
 
             # 3. Create Credential List (account-level SIP)
-            cred_list = self._client.api.v2010.account(self.account_sid).sip.credential_lists.create(
+            cred_list = self._client.api.accounts(self.account_sid).sip.credential_lists.create(
                 friendly_name=cred_list_name
             )
             credential_list_sid = cred_list.sid
 
             sip_username = f"resona_{uuid4().hex[:8]}"
             sip_password = _make_twilio_password()
-            self._client.api.v2010.account(self.account_sid).sip.credential_lists(
+            self._client.api.accounts(self.account_sid).sip.credential_lists(
                 credential_list_sid
             ).credentials.create(username=sip_username, password=sip_password)
             logger.info("Created credential list %s with credential", credential_list_sid)
@@ -84,7 +84,7 @@ class TwilioSetupService:
             logger.info("Attached credential list to trunk %s", trunk_sid)
 
             # 5. Associate phone number with trunk: get IncomingPhoneNumber SID then add to trunk
-            incoming = self._client.api.v2010.account(self.account_sid).incoming_phone_numbers.list(
+            incoming = self._client.api.accounts(self.account_sid).incoming_phone_numbers.list(
                 phone_number=self.phone_number
             )
             if not incoming:
