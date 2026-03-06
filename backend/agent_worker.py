@@ -201,7 +201,7 @@ async def entrypoint(ctx: JobContext):
             api_key=deepgram_key,
         )
 
-    # Turn detection: use STT (livekit-agents 1.5.x; optional tuning params removed for API compatibility)
+    # Turn detection: STT; tune for faster response and fewer false cuts (1.5.x accepts these kwargs)
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
         stt=stt,
@@ -209,6 +209,11 @@ async def entrypoint(ctx: JobContext):
         tts=tts,
         turn_detection="stt",
         allow_interruptions=True,
+        min_endpointing_delay=0.25,
+        max_endpointing_delay=2.0,
+        min_interruption_duration=0.2,
+        min_interruption_words=0,
+        preemptive_generation=True,
     )
 
     @session.on("user_input_transcribed")

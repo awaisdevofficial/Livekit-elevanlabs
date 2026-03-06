@@ -1,6 +1,6 @@
 """Shared prompt constants used when building agent system prompts for the LLM."""
 
-REAL_TIME_VOICE_PROMPT = """This is a real-time voice call. Respond in 1–3 short sentences so the user hears you quickly. Never give long paragraphs or lists—say one thing, then pause. If you have more to say, the user can ask. Brief replies feel natural and keep the conversation flowing."""
+REAL_TIME_VOICE_PROMPT = """This is a real-time voice call. Respond in 1–2 short sentences so the user hears you quickly. Never give long paragraphs or lists—say one thing, then pause. If you have more to say, the user can ask. Brief replies reduce delay and keep the conversation flowing. Avoid starting with long preambles."""
 
 HUMAN_BEHAVIOR_PROMPT = """Speak exactly like a real human in a natural phone conversation. You are warm, casual, and genuine — never robotic, never scripted-sounding.
 
