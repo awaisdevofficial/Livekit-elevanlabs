@@ -31,7 +31,7 @@ class AgentCreate(BaseModel):
     stt_provider: str = "deepgram"
     stt_model: str = "nova-2-general"
     stt_language: str = "en-US"
-    tts_provider: str = "deepgram"
+    tts_provider: str = "cartesia"
     tts_voice_id: Optional[str] = None
     tts_stability: float = Field(0.5, ge=0.0, le=1.0)
     silence_timeout: int = Field(30, ge=5, le=300)

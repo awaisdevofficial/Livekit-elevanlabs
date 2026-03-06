@@ -12,6 +12,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.constants import get_tts_provider_and_voice_id
 from app.database import AsyncSessionLocal, get_db
 from app.prompts import get_full_system_prompt
 from app.middleware.auth import get_current_user, verify_internal_secret
@@ -171,8 +172,9 @@ async def make_outbound_call(
     kb_entries = kb_result.scalars().all()
     knowledge_base = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
 
-    voice_id = agent.tts_voice_id or "aura-2-andromeda-en"
-    tts_provider = agent.tts_provider or "deepgram"
+    tts_provider, voice_id = get_tts_provider_and_voice_id(
+        agent.tts_provider, agent.tts_voice_id
+    )
 
     # Create room with metadata
     room_name = f"sip-{user.id}-{uuid.uuid4()}"

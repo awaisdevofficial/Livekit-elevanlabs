@@ -7,6 +7,7 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 
+from app.constants import DEFAULT_CARTESIA_VOICE_ID, get_tts_provider_and_voice_id
 from app.prompts import get_full_system_prompt
 import httpx
 from livekit.agents import (
@@ -108,8 +109,8 @@ async def entrypoint(ctx: JobContext):
             agent_config = {
                 "system_prompt": "You are a helpful voice AI assistant.",
                 "first_message": "Hi, how can I help?",
-                "tts_provider": "deepgram",
-                "tts_voice_id": "aura-2-andromeda-en",
+                "tts_provider": "cartesia",
+                "tts_voice_id": DEFAULT_CARTESIA_VOICE_ID,
             }
 
     base_system_prompt = agent_config.get(
@@ -131,12 +132,13 @@ async def entrypoint(ctx: JobContext):
         system_prompt = get_full_system_prompt(base_system_prompt)
     first_message = agent_config.get("first_message", "Hi, how can I help?")
 
-    # Determine TTS/STT configuration from metadata
+    # Determine TTS/STT configuration from metadata (STT=Deepgram, TTS=Cartesia default)
     stt_language = agent_config.get("stt_language", "en-US")
     stt_model = agent_config.get("stt_model") or "nova-2-general"
 
-    # TTS: Deepgram Aura 2; map legacy voice ids to Aura 2 model names
-    tts_voice_id = agent_config.get("tts_voice_id") or "aura-2-andromeda-en"
+    tts_provider, tts_voice_id = get_tts_provider_and_voice_id(
+        agent_config.get("tts_provider"), agent_config.get("tts_voice_id")
+    )
     tts_model = DEEPGRAM_TTS_MODEL_MAP.get(tts_voice_id) or (
         tts_voice_id if str(tts_voice_id).startswith("aura-2-") else "aura-2-andromeda-en"
     )
@@ -179,16 +181,14 @@ async def entrypoint(ctx: JobContext):
         model="llama-3.3-70b-versatile",
         api_key=groq_key,
     )
-    # TTS: Cartesia or Deepgram (from agent tts_provider)
-    tts_provider = (agent_config.get("tts_provider") or "deepgram").lower()
+    # TTS: Cartesia (default) or Deepgram
     if tts_provider == "cartesia":
         cartesia_key = os.environ.get("CARTESIA_API_KEY", "").strip()
         if not cartesia_key:
             raise RuntimeError(
                 "CARTESIA_API_KEY is required when tts_provider is cartesia. Set it in the environment."
             )
-        # Cartesia voice id from config (e.g. UUID); default is Cartesia's Katie
-        cartesia_voice = tts_voice_id or "f786b574-daa5-4673-aa0c-cbe3e8534c02"
+        cartesia_voice = tts_voice_id or DEFAULT_CARTESIA_VOICE_ID
         tts = cartesia.TTS(
             model="sonic-3",
             voice=cartesia_voice,

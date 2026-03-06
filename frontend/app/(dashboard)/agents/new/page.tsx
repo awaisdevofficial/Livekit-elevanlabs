@@ -21,7 +21,7 @@ const FIXED_DEFAULTS = {
   stt_provider: "deepgram",
   stt_model: "nova-2-general",
   stt_language: "en-US",
-  tts_provider: "deepgram",
+  tts_provider: "cartesia",
   tts_stability: 0.5,
 }
 
@@ -63,7 +63,7 @@ export default function NewAgentPage() {
         "You are a helpful, friendly voice AI agent that assists callers with their questions.",
       first_message: "Hi, this is your AI assistant. How can I help you today?",
       tts_voice_id: "",
-      tts_provider: "deepgram",
+      tts_provider: "cartesia",
       stt_language: "en-US",
       silence_timeout: 30,
       max_duration: 3600,
@@ -115,7 +115,7 @@ export default function NewAgentPage() {
         },
         body: JSON.stringify({
           voice_id: form.getValues("tts_voice_id"),
-          provider: form.getValues("tts_provider") || "deepgram",
+          provider: form.getValues("tts_provider") || "cartesia",
           text:
             "Hi, I am your AI voice assistant, ready to help you on every call.",
         }),
@@ -311,7 +311,7 @@ export default function NewAgentPage() {
                         {displayVoice || "Cartesia default voice"}
                       </p>
                       <p className="text-[11px] text-[#9CA3AF]">
-                        Provider: {(watchedProvider || "deepgram").toUpperCase()}
+                        Provider: {(watchedProvider || "cartesia").toUpperCase()}
                       </p>
                     </div>
                   </div>
@@ -520,7 +520,7 @@ export default function NewAgentPage() {
         open={voiceLibraryOpen}
         onClose={() => setVoiceLibraryOpen(false)}
         selectedVoiceId={watchedVoice}
-        selectedProvider={watchedProvider || "deepgram"}
+        selectedProvider={watchedProvider || "cartesia"}
         onSelect={(voice: Voice) => {
           form.setValue("tts_voice_id", voice.id)
           form.setValue("tts_provider", voice.provider)

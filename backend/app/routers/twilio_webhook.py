@@ -22,10 +22,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from twilio.twiml.voice_response import Dial, VoiceResponse
 
-from app.prompts import get_full_system_prompt
-
 from app.config import settings
+from app.constants import get_tts_provider_and_voice_id
 from app.database import get_db
+from app.prompts import get_full_system_prompt
 from app.models.agent import Agent
 from app.models.call import Call
 from app.models.knowledge_base import KnowledgeBase
@@ -69,11 +69,14 @@ async def handle_inbound(request: Request, db: AsyncSession = Depends(get_db)):
     knowledge_base = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
 
     full_system_prompt = get_full_system_prompt(agent.system_prompt)
+    tts_provider, tts_voice_id = get_tts_provider_and_voice_id(
+        agent.tts_provider, agent.tts_voice_id
+    )
     metadata = json.dumps({
         "system_prompt": full_system_prompt,
         "first_message": agent.first_message or "Hi, how can I help you today?",
-        "tts_provider": agent.tts_provider or "deepgram",
-        "tts_voice_id": agent.tts_voice_id or "aura-2-andromeda-en",
+        "tts_provider": tts_provider,
+        "tts_voice_id": tts_voice_id,
         "stt_model": agent.stt_model or "nova-2-general",
         "stt_language": agent.stt_language or "en-US",
         "silence_timeout": int(agent.silence_timeout or 30),
