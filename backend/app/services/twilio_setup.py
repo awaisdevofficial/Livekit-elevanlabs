@@ -53,6 +53,11 @@ class TwilioSetupService:
         trunk_sid = trunk.sid
         logger.info("Created Twilio trunk %s", trunk_sid)
 
+        # Set Termination SIP URI (domain_name) so the trunk is fully configured for outbound and console shows it
+        domain_name = f"{trunk_sid}.pstn.twilio.com"
+        self._client.trunking.v1.trunks(trunk_sid).update(domain_name=domain_name)
+        logger.info("Set termination domain %s on trunk %s", domain_name, trunk_sid)
+
         try:
             # 2. Add Origination URI
             sip_url = f"sip:{self.sip_server_ip}:5060"
