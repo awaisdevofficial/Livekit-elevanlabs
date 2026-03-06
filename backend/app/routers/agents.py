@@ -234,18 +234,28 @@ async def create_web_call_token(
         .to_jwt()
     )
 
-    api_url = settings.LIVEKIT_API_URL or "http://127.0.0.1:7880"
-    async with LiveKitAPI(
-        url=api_url,
-        api_key=settings.LIVEKIT_API_KEY,
-        api_secret=settings.LIVEKIT_API_SECRET,
-    ) as lk:
-        from livekit.api import CreateRoomRequest
-        await lk.room.create_room(
-            CreateRoomRequest(
-                name=room_name,
-                metadata=metadata,
+    api_url = (settings.LIVEKIT_API_URL or "").strip() or "http://127.0.0.1:7880"
+    try:
+        async with LiveKitAPI(
+            url=api_url,
+            api_key=settings.LIVEKIT_API_KEY,
+            api_secret=settings.LIVEKIT_API_SECRET,
+        ) as lk:
+            from livekit.api import CreateRoomRequest
+            await lk.room.create_room(
+                CreateRoomRequest(
+                    name=room_name,
+                    metadata=metadata,
+                )
             )
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Could not create LiveKit room. If the backend runs in Docker, set "
+                "LIVEKIT_API_URL to the host address (e.g. http://172.31.18.18:7880), not 127.0.0.1. "
+                f"Error: {e!s}"
+            ),
         )
 
     return {
