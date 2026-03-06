@@ -53,10 +53,18 @@ class TwilioSetupService:
         trunk_sid = trunk.sid
         logger.info("Created Twilio trunk %s", trunk_sid)
 
-        # Set Termination SIP URI (domain_name) so the trunk is fully configured for outbound and console shows it
-        domain_name = f"{trunk_sid}.pstn.twilio.com"
-        self._client.trunking.v1.trunks(trunk_sid).update(domain_name=domain_name)
-        logger.info("Set termination domain %s on trunk %s", domain_name, trunk_sid)
+        # Set Termination SIP URI (domain_name). Twilio requires valid hostname segments (e.g. lowercase).
+        try:
+            domain_name = f"{trunk_sid.lower()}.pstn.twilio.com"
+            self._client.trunking.v1.trunks(trunk_sid).update(domain_name=domain_name)
+            logger.info("Set termination domain %s on trunk %s", domain_name, trunk_sid)
+        except Exception as e:
+            logger.warning(
+                "Could not set termination domain on trunk %s: %s. "
+                "Set Termination SIP URI manually in Twilio Console if needed.",
+                trunk_sid,
+                e,
+            )
 
         try:
             # 2. Add Origination URI
