@@ -1,5 +1,7 @@
 # Agent worker – run once
 
+The agent worker handles **all** voice calls: **web test calls** (browser) and **Twilio/SIP phone calls**. The same process joins each LiveKit room and runs the voice agent, so env and fallback (e.g. OpenAI) apply to every call type.
+
 ## Voice call behavior (barge-in and response)
 
 - **Interruptions:** The agent stops when you start speaking. Key settings in `agent_worker.py`:
@@ -8,6 +10,15 @@
   - `min_interruption_duration=0.08` so brief user speech triggers a stop.
   - `false_interruption_timeout=None` and `resume_false_interruption=False` so the agent does not auto-resume after you interrupt.
 - **Fast response:** `preemptive_generation=True` and short prompts keep replies quick. If the agent still doesn’t stop when you speak, check that only one worker is running and that the user’s mic is unmuted in the test call UI.
+
+**No interruption / TTS keeps completing:** The worker only applies `aec_warmup_duration=0` and related options when the installed `livekit-agents` version supports them (1.5+). If the server has an older SDK, the agent uses defaults (e.g. 3s AEC warmup) and will not barge-in at the start. Upgrade on the server so barge-in works:
+
+```bash
+cd /opt/resona/app/backend
+source .venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart resona-agent
+```
 
 **CLI:** Use `python agent_worker.py start` (production) or `python agent_worker.py dev` (development). There is no `run` command.
 
@@ -37,6 +48,12 @@ If you see the systemd service **and** another `python ... agent_worker` process
 ## LLM connection errors (APIConnectionError / APIStatusError)
 
 If logs show `APIConnectionError` or `APIStatusError` in `_llm_inference_task` / `llm_node`, the worker is failing to talk to the **Groq** API (LLM). Check:
+
+**429 Rate limit:** If the error says `Rate limit reached ... tokens per day (TPD)` or `rate_limit_exceeded`, your Groq account has hit its daily token limit (e.g. 100k TPD on the free/on-demand tier). The agent worker can fall back to OpenAI when `OPENAI_API_KEY` is set (see below). Otherwise wait for the cooldown or upgrade at https://console.groq.com/settings/billing.
+
+**OpenAI fallback:** Set `OPENAI_API_KEY` in the agent worker env (e.g. `backend/.env` or systemd) to use OpenAI (gpt-4o-mini) when Groq returns 429 or connection errors. The worker uses Groq first and switches to OpenAI automatically on failure. This applies to **all** calls (web test and Twilio/SIP).
+
+**Calls and Twilio:** For Twilio and other phone calls, the backend creates a LiveKit room and the **same** agent worker joins it (via room metadata or SIP dispatch). Ensure the worker has `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `API_BASE_URL`, `INTERNAL_SECRET`, plus `DEEPGRAM_API_KEY`, `CARTESIA_API_KEY`, `GROQ_API_KEY` (and optionally `OPENAI_API_KEY`) so every call type works.
 
 1. **GROQ_API_KEY** is set in the environment used by the agent worker (e.g. in the systemd unit’s env or `backend/.env`).
 2. Server can reach Groq: `curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $GROQ_API_KEY" https://api.groq.com/openai/v1/models`.

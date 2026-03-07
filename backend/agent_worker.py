@@ -17,7 +17,7 @@ from livekit.agents import (
     WorkerOptions,
     cli,
 )
-from livekit.agents.llm import function_tool
+from livekit.agents.llm import FallbackAdapter, function_tool
 from livekit.agents.voice import Agent, AgentSession
 from livekit.agents.voice.events import UserInputTranscribedEvent
 from livekit.agents.voice import room_io as voice_room_io
@@ -155,11 +155,27 @@ async def entrypoint(ctx: JobContext):
         vad_events=True,
         filler_words=True,
     )
-    # LLM: Groq (streaming); keep responses short via prompt so TTS starts quickly
-    llm = groq.LLM(
+    # LLM: Groq primary; OpenAI as fallback on rate limit (429) or connection errors
+    primary_llm = groq.LLM(
         model="llama-3.3-70b-versatile",
         api_key=groq_key,
     )
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if openai_key:
+        from livekit.plugins import openai as openai_plugin
+        fallback_llm = openai_plugin.LLM(
+            model="gpt-4o-mini",
+            api_key=openai_key,
+        )
+        llm = FallbackAdapter(
+            llm=[primary_llm, fallback_llm],
+            attempt_timeout=15.0,
+            max_retry_per_llm=0,
+        )
+        logger.info("LLM: Groq primary with OpenAI fallback (gpt-4o-mini)")
+    else:
+        llm = primary_llm
+        logger.info("LLM: Groq only (set OPENAI_API_KEY for fallback)")
     # TTS: Cartesia only
     cartesia_key = os.environ.get("CARTESIA_API_KEY", "").strip()
     if not cartesia_key:
