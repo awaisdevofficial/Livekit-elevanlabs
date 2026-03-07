@@ -202,10 +202,13 @@ async def entrypoint(ctx: JobContext):
         "min_interruption_words": 2,
         "preemptive_generation": True,
     }
-    # Optional args (supported in livekit-agents 1.5+); skip on older SDK to avoid TypeError
+    # Self-hosted LiveKit: disable cloud barge-in (agent-gateway.livekit.cloud); use local VAD only.
+    # Optional args (supported in livekit-agents 1.5+); skip on older SDK to avoid TypeError.
     try:
         from inspect import signature
         sig = signature(AgentSession.__init__)
+        if "use_remote_turn_detector" in sig.parameters:
+            _session_kw["use_remote_turn_detector"] = False
         if "aec_warmup_duration" in sig.parameters:
             _session_kw["aec_warmup_duration"] = 0
         if "false_interruption_timeout" in sig.parameters:
