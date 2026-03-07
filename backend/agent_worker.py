@@ -201,6 +201,7 @@ async def entrypoint(ctx: JobContext):
         "min_interruption_duration": 0.3,
         "min_interruption_words": 2,
         "preemptive_generation": True,
+        "interruption_detection": "vad",
     }
     # Self-hosted LiveKit: disable cloud barge-in (agent-gateway.livekit.cloud); use local VAD only.
     # Optional args (supported in livekit-agents 1.5+); skip on older SDK to avoid TypeError.
