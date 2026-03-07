@@ -285,7 +285,7 @@ async def entrypoint(ctx: JobContext):
     # Deepgram STT expects 16 kHz; set room input to 16 kHz so user voice reaches STT correctly.
     try:
         await session.start(
-            agent=Agent(instructions=system_prompt, tools=[transfer_tool], interruption_detection="vad"),
+            agent=Agent(instructions=system_prompt, tools=[transfer_tool]),
             room=ctx.room,
             room_input_options=voice_room_io.RoomInputOptions(audio_sample_rate=16000),
         )

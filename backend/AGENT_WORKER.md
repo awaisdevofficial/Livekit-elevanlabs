@@ -6,7 +6,6 @@ The agent worker handles **all** voice calls: **web test calls** (browser) and *
 
 - **Interruptions:** The agent stops when you start speaking. Key settings in `agent_worker.py`:
   - `turn_detection="vad"` so the agent reacts to voice activity immediately (with `"stt"` it waited for speech-to-text, so it often finished its sentence first).
-  - `interruption_detection="vad"` on the `Agent(...)` call so barge-in uses local VAD (same as turn detection).
   - `use_remote_turn_detector=False` so **self-hosted LiveKit** uses only local VAD (Silero) for barge-in. The cloud barge-in service (`wss://agent-gateway.livekit.cloud/v1/bargein`) is LiveKit Cloud–only; self-hosted keys get 401 there, so we disable it.
   - `aec_warmup_duration=0` so barge-in works from the very start.
   - `min_interruption_duration=0.3`, `min_interruption_words=2` so brief noise/breath doesn’t trigger; real speech does.
