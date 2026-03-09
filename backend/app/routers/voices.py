@@ -28,11 +28,50 @@ def _piper_base_url() -> str:
     return url + "/v1" if not url.endswith("/v1") else url
 
 
+# Comprehensive Piper voice list (medium quality preferred). Used when Piper returns few/fails.
+# See https://github.com/rhasspy/piper/blob/master/VOICES.md
 PIPER_VOICES_FALLBACK = [
+    # English (US)
     {"id": "en_US-amy-medium", "name": "Amy", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "female", "quality": "medium", "description": "English (US) — Female"},
+    {"id": "en_US-amy-low", "name": "Amy (low)", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "female", "quality": "low", "description": "English (US) — Female"},
     {"id": "en_US-joe-medium", "name": "Joe", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English (US) — Male"},
     {"id": "en_US-ryan-medium", "name": "Ryan", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English (US) — Male"},
+    {"id": "en_US-ryan-low", "name": "Ryan (low)", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "low", "description": "English (US) — Male"},
+    {"id": "en_US-ryan-high", "name": "Ryan (high)", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "high", "description": "English (US) — Male"},
+    {"id": "en_US-bryce-medium", "name": "Bryce", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English (US) — Male"},
+    {"id": "en_US-danny-low", "name": "Danny", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "low", "description": "English (US) — Male"},
+    {"id": "en_US-arctic-medium", "name": "Arctic", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "neutral", "quality": "medium", "description": "English (US) — Neutral"},
+    {"id": "en_US-kristin-medium", "name": "Kristin", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "female", "quality": "medium", "description": "English (US) — Female"},
+    {"id": "en_US-kathleen-low", "name": "Kathleen", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "female", "quality": "low", "description": "English (US) — Female"},
+    {"id": "en_US-lessac-medium", "name": "Lessac", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English (US) — Male"},
+    {"id": "en_US-ljspeech-medium", "name": "LJ Speech", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "female", "quality": "medium", "description": "English (US) — Female"},
+    {"id": "en_US-sam-medium", "name": "Sam", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English (US) — Male"},
+    {"id": "en_US-norman-medium", "name": "Norman", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English (US) — Male"},
+    {"id": "en_US-hfc_female-medium", "name": "HFC Female", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "female", "quality": "medium", "description": "English (US) — Female"},
+    {"id": "en_US-hfc_male-medium", "name": "HFC Male", "provider": "piper", "language": "English (US)", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English (US) — Male"},
+    # English (GB)
     {"id": "en_GB-alan-medium", "name": "Alan", "provider": "piper", "language": "English (GB)", "language_code": "en_GB", "gender": "male", "quality": "medium", "description": "English (GB) — Male"},
+    {"id": "en_GB-alan-low", "name": "Alan (low)", "provider": "piper", "language": "English (GB)", "language_code": "en_GB", "gender": "male", "quality": "low", "description": "English (GB) — Male"},
+    {"id": "en_GB-alba-medium", "name": "Alba", "provider": "piper", "language": "English (GB)", "language_code": "en_GB", "gender": "female", "quality": "medium", "description": "English (GB) — Female"},
+    {"id": "en_GB-cori-medium", "name": "Cori", "provider": "piper", "language": "English (GB)", "language_code": "en_GB", "gender": "female", "quality": "medium", "description": "English (GB) — Female"},
+    {"id": "en_GB-southern_english_female-low", "name": "Southern English Female", "provider": "piper", "language": "English (GB)", "language_code": "en_GB", "gender": "female", "quality": "low", "description": "English (GB) — Female"},
+    {"id": "en_GB-northern_english_male-medium", "name": "Northern English Male", "provider": "piper", "language": "English (GB)", "language_code": "en_GB", "gender": "male", "quality": "medium", "description": "English (GB) — Male"},
+    # Spanish, French, German, etc.
+    {"id": "es_ES-sharvard-medium", "name": "Sharvard", "provider": "piper", "language": "Spanish", "language_code": "es_ES", "gender": "male", "quality": "medium", "description": "Spanish — Male"},
+    {"id": "es_ES-davefx-medium", "name": "Dave", "provider": "piper", "language": "Spanish", "language_code": "es_ES", "gender": "male", "quality": "medium", "description": "Spanish — Male"},
+    {"id": "fr_FR-siwis-medium", "name": "Siwis", "provider": "piper", "language": "French", "language_code": "fr_FR", "gender": "female", "quality": "medium", "description": "French — Female"},
+    {"id": "fr_FR-gilles-low", "name": "Gilles", "provider": "piper", "language": "French", "language_code": "fr_FR", "gender": "male", "quality": "low", "description": "French — Male"},
+    {"id": "de_DE-thorsten-medium", "name": "Thorsten", "provider": "piper", "language": "German", "language_code": "de_DE", "gender": "male", "quality": "medium", "description": "German — Male"},
+    {"id": "de_DE-kerstin-low", "name": "Kerstin", "provider": "piper", "language": "German", "language_code": "de_DE", "gender": "female", "quality": "low", "description": "German — Female"},
+    {"id": "it_IT-paola-medium", "name": "Paola", "provider": "piper", "language": "Italian", "language_code": "it_IT", "gender": "female", "quality": "medium", "description": "Italian — Female"},
+    {"id": "it_IT-riccardo-x_low", "name": "Riccardo", "provider": "piper", "language": "Italian", "language_code": "it_IT", "gender": "male", "quality": "x_low", "description": "Italian — Male"},
+    {"id": "pt_BR-faber-medium", "name": "Faber", "provider": "piper", "language": "Portuguese (BR)", "language_code": "pt_BR", "gender": "male", "quality": "medium", "description": "Portuguese (BR) — Male"},
+    {"id": "nl_NL-mls-medium", "name": "MLS Dutch", "provider": "piper", "language": "Dutch", "language_code": "nl_NL", "gender": "female", "quality": "medium", "description": "Dutch — Female"},
+    {"id": "pl_PL-darkman-medium", "name": "Darkman", "provider": "piper", "language": "Polish", "language_code": "pl_PL", "gender": "male", "quality": "medium", "description": "Polish — Male"},
+    {"id": "ru_RU-denis-medium", "name": "Denis", "provider": "piper", "language": "Russian", "language_code": "ru_RU", "gender": "male", "quality": "medium", "description": "Russian — Male"},
+    {"id": "zh_CN-huayan-medium", "name": "Huayan", "provider": "piper", "language": "Chinese", "language_code": "zh_CN", "gender": "female", "quality": "medium", "description": "Chinese — Female"},
+    {"id": "ar_JO-kareem-medium", "name": "Kareem", "provider": "piper", "language": "Arabic", "language_code": "ar_JO", "gender": "male", "quality": "medium", "description": "Arabic — Male"},
+    {"id": "hi_IN-priyamvada-medium", "name": "Priyamvada", "provider": "piper", "language": "Hindi", "language_code": "hi_IN", "gender": "female", "quality": "medium", "description": "Hindi — Female"},
 ]
 
 
@@ -84,24 +123,25 @@ class VoicePreviewRequest(BaseModel):
 
 
 async def _fetch_piper_voices() -> list[Voice]:
-    """Fetch available voices from Piper server (GET /v1/voices). Returns fallback list on failure."""
+    """Fetch available voices from Piper server (GET /v1/voices). Merges with fallback so we always have a full list."""
     base = _piper_base_url()
+    fallback_voices = [
+        Voice(**_enrich_voice(dict(v)))
+        for v in PIPER_VOICES_FALLBACK
+    ]
     if not base:
         logger.debug("Piper base URL not set; using fallback voice list")
-        return [
-            Voice(**_enrich_voice(dict(v)))
-            for v in PIPER_VOICES_FALLBACK
-        ]
+        return fallback_voices
+    piper_voices: list[Voice] = []
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(f"{base}/voices")
             if resp.status_code == 200:
                 data = resp.json()
-                voices = []
                 for v in data if isinstance(data, list) else []:
                     raw = dict(v) if isinstance(v, dict) else {"id": str(v), "name": str(v)}
                     enriched = _enrich_voice(raw)
-                    voices.append(
+                    piper_voices.append(
                         Voice(
                             id=enriched.get("id", ""),
                             name=enriched.get("name", ""),
@@ -113,16 +153,17 @@ async def _fetch_piper_voices() -> list[Voice]:
                             quality=enriched.get("quality"),
                         )
                     )
-                if voices:
-                    return voices
             else:
                 logger.warning("Piper /voices returned %s: %s", resp.status_code, resp.text[:200])
     except Exception as e:
-        logger.warning("Piper voices fetch failed: %s. Using fallback list.", e)
-    return [
-        Voice(**_enrich_voice(dict(v)))
-        for v in PIPER_VOICES_FALLBACK
-    ]
+        logger.warning("Piper voices fetch failed: %s. Merging with fallback.", e)
+    # Merge: Piper voices first (server has these), then fallback voices not already present
+    seen_ids: set[str] = {v.id for v in piper_voices}
+    for v in fallback_voices:
+        if v.id not in seen_ids:
+            piper_voices.append(v)
+            seen_ids.add(v.id)
+    return piper_voices if piper_voices else fallback_voices
 
 
 @router.get("", response_model=List[Voice])

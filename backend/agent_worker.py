@@ -145,22 +145,48 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning(f"Failed to send transcript: {e}")
 
-    # STT — Whisper.cpp only (openai-compatible)
+    # STT — Whisper.cpp only (openai-compatible). Use explicit client with 60s timeout for CPU Whisper.
     from livekit.plugins import openai as openai_plugin
+    from openai import AsyncClient as OpenAIAsyncClient
 
     whisper_url = (app_settings.WHISPER_STT_URL or "").strip()
     if not whisper_url:
         raise RuntimeError("WHISPER_STT_URL is not configured. Cannot start agent worker.")
 
-    stt = openai_plugin.STT(
-        base_url=whisper_url.replace("/v1/audio/transcriptions", ""),
-        api_key="sk-self-hosted",
-        model="whisper-1",
-        language=(stt_language or "en").split("-")[0],
+    # OpenAI client expects base_url to end with /v1 (it appends /audio/transcriptions)
+    whisper_base = whisper_url.replace("/v1/audio/transcriptions", "").rstrip("/")
+    if not whisper_base.endswith("/v1"):
+        whisper_base = whisper_base + "/v1"
+    _http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(60.0),
+        follow_redirects=True,
     )
-    # Monkey-patch: Whisper.cpp on CPU needs longer timeout than default 5s read
-    if hasattr(stt, "_client") and hasattr(stt._client, "_client"):
-        stt._client._client.timeout = httpx.Timeout(60.0)
+    _openai_client = OpenAIAsyncClient(
+        api_key="sk-self-hosted",
+        base_url=whisper_base,
+        http_client=_http_client,
+    )
+    try:
+        stt = openai_plugin.STT(
+            client=_openai_client,
+            model="whisper-1",
+            language=(stt_language or "en").split("-")[0],
+        )
+    except TypeError as e:
+        if "http_session" in str(e):
+            # Older livekit-agents may pass http_session; plugin may not accept it. Create with minimal args.
+            stt = openai_plugin.STT(
+                base_url=whisper_base,
+                api_key="sk-self-hosted",
+                model="whisper-1",
+                language=(stt_language or "en").split("-")[0],
+            )
+            if hasattr(stt, "_client") and hasattr(stt._client, "_client"):
+                stt._client._client.timeout = httpx.Timeout(60.0)
+            elif hasattr(stt, "_client") and hasattr(stt._client, "http_client"):
+                stt._client.http_client.timeout = httpx.Timeout(60.0)
+        else:
+            raise
     logger.info("STT: self-hosted Whisper.cpp at %s", whisper_url)
 
     # LLM

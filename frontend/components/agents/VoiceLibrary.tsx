@@ -38,6 +38,30 @@ const LANG_FLAGS: Record<string, string> = {
   nl: "🇳🇱",
   pl: "🇵🇱",
   tr: "🇹🇷",
+  fa: "🇮🇷",
+  el: "🇬🇷",
+  cy: "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+  ca: "🇪🇸",
+  cs: "🇨🇿",
+  da: "🇩🇰",
+  fi: "🇫🇮",
+  hu: "🇭🇺",
+  is: "🇮🇸",
+  ka: "🇬🇪",
+  kk: "🇰🇿",
+  lb: "🇱🇺",
+  lv: "🇱🇻",
+  ml: "🇮🇳",
+  ne: "🇳🇵",
+  no: "🇳🇴",
+  ro: "🇷🇴",
+  sk: "🇸🇰",
+  sl: "🇸🇮",
+  sr: "🇷🇸",
+  sv: "🇸🇪",
+  sw: "🇰🇪",
+  uk: "🇺🇦",
+  vi: "🇻🇳",
 }
 
 const providerLabel: Record<string, string> = {
@@ -196,6 +220,8 @@ export function VoiceLibrary({
       case "medium":
         return "bg-blue-500/20 text-blue-400 border-blue-500/40"
       case "low":
+      case "x_low":
+        return "bg-white/10 text-white/70 border-white/20"
       default:
         return "bg-white/10 text-white/70 border-white/20"
     }
@@ -229,7 +255,7 @@ export function VoiceLibrary({
                     Voice library
                   </h2>
                   <p className="text-xs text-white/70 mt-0.5">
-                    Piper TTS is your voice engine. Self-hosted and private.
+                    {voices.length} voices available · Select any voice for your agent
                   </p>
                 </div>
                 <button

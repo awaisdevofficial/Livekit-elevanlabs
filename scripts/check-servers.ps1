@@ -33,8 +33,8 @@ try {
 
 Write-Host "`n=== Main server $MAIN_HOST ===" -ForegroundColor Cyan
 Test-Endpoint "LiveKit (7880)" "http://${MAIN_HOST}:7880/"
-Test-Endpoint "Backend (8001) /health" "http://${MAIN_HOST}:8001/health"
-Test-Endpoint "Frontend (3001)" "http://${MAIN_HOST}:3001/"
+Test-Endpoint "Backend (8000) /health" "http://${MAIN_HOST}:8000/health"
+Test-Endpoint "Frontend (8080)" "http://${MAIN_HOST}:8080/"
 # If you use a domain with HTTPS:
 # Test-Endpoint "Backend (HTTPS)" "https://resonaai.duckdns.org/api/health"
 

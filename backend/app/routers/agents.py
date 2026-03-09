@@ -186,21 +186,25 @@ async def _create_web_call_token_impl(
     voice_id = (agent.tts_voice_id or "").strip() or DEFAULT_PIPER_VOICE
 
     full_system_prompt = get_full_system_prompt(agent.system_prompt)
-    max_prompt = getattr(settings, "MAX_SYSTEM_PROMPT_LEN", 8000)
-    max_first = getattr(settings, "MAX_FIRST_MESSAGE_LEN", 500)
-    max_kb = getattr(settings, "MAX_KNOWLEDGE_BASE_LEN_FOR_TOKEN", 4000)
-    system_prompt_for_token = full_system_prompt[:max_prompt] if len(full_system_prompt) > max_prompt else full_system_prompt
-    first_message_for_token = (agent.first_message or "")[:max_first]
+    max_kb = getattr(settings, "MAX_KNOWLEDGE_BASE_LEN_FOR_TOKEN", 8000)
 
-    metadata_dict = {
+    kb_result = await db.execute(
+        select(KnowledgeBase).where(KnowledgeBase.agent_id == agent.id)
+    )
+    kb_entries = kb_result.scalars().all()
+    knowledge_base_raw = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
+    knowledge_base_for_room = knowledge_base_raw[:max_kb] if len(knowledge_base_raw) > max_kb else knowledge_base_raw
+
+    # Full room metadata (agent worker reads ctx.room.metadata). Stored on LiveKit server, not in URL.
+    room_metadata_dict = {
         "type": "web_test",
         "test_title": f"Test call – {agent.name}",
         "agent_id": str(agent.id),
         "agent_name": agent.name,
         "user_id": str(user.id),
         "user_email": user.email,
-        "system_prompt": system_prompt_for_token,
-        "first_message": first_message_for_token,
+        "system_prompt": full_system_prompt,
+        "first_message": (agent.first_message or "")[:500],
         "llm_model": agent.llm_model or "gpt-4o-mini",
         "llm_temperature": agent.llm_temperature or 0.7,
         "llm_max_tokens": agent.llm_max_tokens or 500,
@@ -216,14 +220,17 @@ async def _create_web_call_token_impl(
         if agent.tools_config
         else True,
         "transfer_number": (agent.tools_config or {}).get("transfer_number", ""),
+        "knowledge_base": knowledge_base_for_room,
     }
 
-    kb_result = await db.execute(
-        select(KnowledgeBase).where(KnowledgeBase.agent_id == agent.id)
-    )
-    kb_entries = kb_result.scalars().all()
-    knowledge_base_raw = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
-    metadata_dict["knowledge_base"] = knowledge_base_raw[:max_kb] if len(knowledge_base_raw) > max_kb else knowledge_base_raw
+    # Token metadata must stay tiny (sent in URL) to avoid 414 Request-URI Too Large.
+    # Agent worker reads room metadata, not token metadata.
+    token_metadata_dict = {
+        "type": "web_test",
+        "agent_id": str(agent.id),
+        "call_id": str(call_id),
+        "user_id": str(user.id),
+    }
 
     # Create Call record so web test calls are persisted
     call = Call(
@@ -233,19 +240,20 @@ async def _create_web_call_token_impl(
         direction="inbound",
         status="ringing",
         livekit_room=room_name,
-        metadata_json=metadata_dict,
+        metadata_json=room_metadata_dict,
     )
     db.add(call)
     await db.commit()
 
-    metadata = json.dumps(metadata_dict)
+    room_metadata = json.dumps(room_metadata_dict)
+    token_metadata = json.dumps(token_metadata_dict)
 
     token = (
         AccessToken(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
         .with_identity(f"user-{user.id}")
         .with_name("Test User")
         .with_grants(VideoGrants(room_join=True, room=room_name))
-        .with_metadata(metadata)
+        .with_metadata(token_metadata)
         .to_jwt()
     )
 
@@ -265,7 +273,7 @@ async def _create_web_call_token_impl(
             await lk.room.create_room(
                 CreateRoomRequest(
                     name=room_name,
-                    metadata=metadata,
+                    metadata=room_metadata,
                 )
             )
     except Exception as e:

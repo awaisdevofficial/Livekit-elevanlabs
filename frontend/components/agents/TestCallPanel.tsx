@@ -323,9 +323,9 @@ export function TestCallPanel({
 
   async function toggleMute() {
     if (!roomRef.current) return
-    const enabled = !muted
-    await roomRef.current.localParticipant.setMicrophoneEnabled(enabled)
-    setMuted(!enabled)
+    const newMuted = !muted
+    await roomRef.current.localParticipant.setMicrophoneEnabled(!newMuted)
+    setMuted(newMuted)
   }
 
   function formatDuration(secs: number) {
