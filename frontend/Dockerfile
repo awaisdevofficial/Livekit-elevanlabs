@@ -7,6 +7,7 @@ COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
 
 COPY frontend/ .
+RUN mkdir -p public
 # Project root .env (with NEXT_PUBLIC_*) used as .env.production for build (create it on the server)
 COPY .env .env.production
 # Ensure Next.js loads .env.production (NODE_ENV=production) and pass build args if provided
