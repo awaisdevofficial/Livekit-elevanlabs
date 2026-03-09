@@ -141,7 +141,7 @@ async def entrypoint(ctx: JobContext):
         api_key="sk-self-hosted",
         base_url=whisper_base,
         http_client=httpx.AsyncClient(
-            timeout=httpx.Timeout(total=60, connect=10),
+            timeout=httpx.Timeout(60.0, connect=10.0),
             follow_redirects=True,
         ),
     )
