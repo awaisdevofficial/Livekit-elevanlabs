@@ -1,3 +1,4 @@
+import logging
 from typing import List
 
 import httpx
@@ -6,6 +7,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 from app.middleware.auth import get_current_user
 from app.models.user import User
 
@@ -83,32 +86,39 @@ class VoicePreviewRequest(BaseModel):
 async def _fetch_piper_voices() -> list[Voice]:
     """Fetch available voices from Piper server (GET /v1/voices). Returns fallback list on failure."""
     base = _piper_base_url()
-    if base:
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(f"{base}/voices")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    voices = []
-                    for v in data if isinstance(data, list) else []:
-                        raw = dict(v) if isinstance(v, dict) else {"id": str(v), "name": str(v)}
-                        enriched = _enrich_voice(raw)
-                        voices.append(
-                            Voice(
-                                id=enriched.get("id", ""),
-                                name=enriched.get("name", ""),
-                                provider=enriched.get("provider", "piper"),
-                                gender=enriched.get("gender"),
-                                description=enriched.get("description"),
-                                language=enriched.get("language"),
-                                language_code=enriched.get("language_code"),
-                                quality=enriched.get("quality"),
-                            )
+    if not base:
+        logger.debug("Piper base URL not set; using fallback voice list")
+        return [
+            Voice(**_enrich_voice(dict(v)))
+            for v in PIPER_VOICES_FALLBACK
+        ]
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{base}/voices")
+            if resp.status_code == 200:
+                data = resp.json()
+                voices = []
+                for v in data if isinstance(data, list) else []:
+                    raw = dict(v) if isinstance(v, dict) else {"id": str(v), "name": str(v)}
+                    enriched = _enrich_voice(raw)
+                    voices.append(
+                        Voice(
+                            id=enriched.get("id", ""),
+                            name=enriched.get("name", ""),
+                            provider=enriched.get("provider", "piper"),
+                            gender=enriched.get("gender"),
+                            description=enriched.get("description"),
+                            language=enriched.get("language"),
+                            language_code=enriched.get("language_code"),
+                            quality=enriched.get("quality"),
                         )
-                    if voices:
-                        return voices
-        except Exception:
-            pass
+                    )
+                if voices:
+                    return voices
+            else:
+                logger.warning("Piper /voices returned %s: %s", resp.status_code, resp.text[:200])
+    except Exception as e:
+        logger.warning("Piper voices fetch failed: %s. Using fallback list.", e)
     return [
         Voice(**_enrich_voice(dict(v)))
         for v in PIPER_VOICES_FALLBACK
@@ -142,12 +152,29 @@ async def preview_voice(body: VoicePreviewRequest, user: User = Depends(get_curr
         raise HTTPException(status_code=503, detail="Piper TTS not configured (set PIPER_TTS_URL)")
     voice = (body.voice_id or "").strip() or (settings.PIPER_TTS_VOICE or "en_US-amy-medium").strip()
     model = (settings.PIPER_TTS_MODEL or "tts-1").strip()
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"{base}/audio/speech",
-            headers={"Content-Type": "application/json"},
-            json={"model": model, "voice": voice, "input": text},
-        )
+    url = f"{base}/audio/speech"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                json={"model": model, "voice": voice, "input": text},
+            )
+    except httpx.ConnectError as e:
+        logger.warning("Piper TTS connection failed: %s", e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Cannot reach Piper TTS at {base}. Check PIPER_TTS_URL and that the Piper server is running.",
+        ) from e
+    except Exception as e:
+        logger.warning("Piper TTS request failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Piper TTS error: {e!s}") from e
     if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"Piper TTS preview failed: {resp.text}")
-    return StreamingResponse(iter([resp.content]), media_type="audio/wav")
+        logger.warning("Piper TTS returned %s: %s", resp.status_code, resp.text[:300])
+        raise HTTPException(
+            status_code=502,
+            detail=f"Piper TTS preview failed (HTTP {resp.status_code}): {resp.text[:200] if resp.text else 'no body'}",
+        )
+    # Piper OpenAI-compatible API returns raw audio (WAV or MP3); prefer WAV for compatibility
+    content_type = resp.headers.get("content-type", "audio/wav").split(";")[0].strip() or "audio/wav"
+    return StreamingResponse(iter([resp.content]), media_type=content_type)

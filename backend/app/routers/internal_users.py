@@ -73,10 +73,10 @@ async def get_default_agent_config(
     return {
         "system_prompt": full_system_prompt,
         "first_message": agent.first_message or "Hi, how can I help you today?",
+        "stt_provider": "whisper",
+        "stt_language": agent.stt_language or "en-US",
         "tts_provider": "piper",
         "tts_voice_id": tts_voice_id,
-        "stt_model": agent.stt_model or "nova-2-general",
-        "stt_language": agent.stt_language or "en-US",
         "knowledge_base": knowledge_base,
         "agent_speaks_first": True,
     }

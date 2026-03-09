@@ -13,12 +13,26 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
+
+@app.get("/")
+async def root():
+    """Root and simple health; returns 200 so load balancers can check."""
+    return {"status": "ok", "service": "piper-tts"}
+
+
+@app.get("/health")
+async def health():
+    v = get_available_voices()
+    return {"status": "ok", "voices_available": len(v)}
+
+
 VOICES_DIR = "/home/ubuntu/piper-voices"
 VOICES_JSON = os.path.join(VOICES_DIR, "voices.json")
 PIPER_BIN = "/home/ubuntu/.local/bin/piper"
 
 
-def get_available_voices():
+def _voices_from_catalog():
+    """Build voice list from voices.json if present."""
     if not os.path.exists(VOICES_JSON):
         return []
     with open(VOICES_JSON) as f:
@@ -50,6 +64,44 @@ def get_available_voices():
             })
     available.sort(key=lambda v: (v["language"], v["name"]))
     return available
+
+
+def _voices_from_dir():
+    """Fallback: scan VOICES_DIR for .onnx files when voices.json is missing."""
+    if not os.path.isdir(VOICES_DIR):
+        return []
+    available = []
+    for name in os.listdir(VOICES_DIR):
+        if not name.endswith(".onnx") or name.endswith(".onnx.json"):
+            continue
+        full_path = os.path.join(VOICES_DIR, name)
+        if not os.path.isfile(full_path):
+            continue
+        voice_id = name.replace(".onnx", "")
+        parts = voice_id.split("-")
+        quality = parts[-1] if len(parts) >= 3 else "medium"
+        lang_code = parts[0] if parts else "en_US"
+        available.append({
+            "id": voice_id,
+            "name": voice_id.replace("_", " ").replace("-", " ").title(),
+            "provider": "piper",
+            "language": "Unknown",
+            "language_code": lang_code,
+            "country": "",
+            "gender": "neutral",
+            "quality": quality,
+            "description": f"{voice_id}",
+            "onnx_path": full_path,
+        })
+    available.sort(key=lambda v: (v["language_code"], v["id"]))
+    return available
+
+
+def get_available_voices():
+    voices = _voices_from_catalog()
+    if not voices:
+        voices = _voices_from_dir()
+    return voices
 
 
 def find_onnx(voice_id: str, voices: list) -> str | None:
@@ -101,9 +153,3 @@ async def synthesize(req: TTSRequest):
 @app.get("/v1/voices")
 async def voices_list():
     return get_available_voices()
-
-
-@app.get("/health")
-async def health():
-    v = get_available_voices()
-    return {"status": "ok", "voices_available": len(v)}

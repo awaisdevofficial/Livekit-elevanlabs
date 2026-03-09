@@ -1,15 +1,33 @@
+# Must be set before any livekit or openai imports (Whisper.cpp on CPU needs ~60s timeout)
+import os
+from pathlib import Path
+
+os.environ.setdefault("OPENAI_TIMEOUT", "60")
+
+# Load backend .env so PIPER_*, WHISPER_*, GROQ_*, etc. are found when worker runs from any cwd
+_backend_dir = Path(__file__).resolve().parent
+from dotenv import load_dotenv
+_load_env = _backend_dir / ".env"
+if _load_env.exists():
+    load_dotenv(_load_env)
+else:
+    load_dotenv()
+# Production: load .env.production so worker gets same vars as backend
+if os.environ.get("ENV") == "production":
+    _prod_env = _backend_dir / ".env.production"
+    if _prod_env.exists():
+        load_dotenv(_prod_env)
+
 import asyncio
 import json
 import logging
-import os
 import time
 from datetime import datetime
 
-from dotenv import load_dotenv
+import httpx
 
 from app.config import settings as app_settings
 from app.prompts import get_full_system_prompt
-import httpx
 from livekit.agents import (
     AutoSubscribe,
     JobContext,
@@ -23,8 +41,6 @@ from livekit.agents.voice.events import UserInputTranscribedEvent
 from livekit.agents.voice import room_io as voice_room_io
 from livekit.plugins import silero, groq
 
-load_dotenv()
-
 logger = logging.getLogger("resona-agent")
 logging.basicConfig(level=logging.INFO)
 
@@ -33,12 +49,11 @@ async def end_call(call_id: str, transcript_lines: list, duration: int):
     if not call_id:
         return
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=10) as client:
             await client.post(
                 f"{os.environ.get('API_BASE_URL', 'http://localhost:8000')}/internal/calls/{call_id}/transcript",
                 json={"lines": transcript_lines, "duration_seconds": duration},
                 headers={"X-Internal-Secret": os.environ.get("INTERNAL_SECRET", "")},
-                timeout=10,
             )
     except Exception as e:
         logger.warning(f"Failed to save transcript: {e}")
@@ -50,6 +65,12 @@ def prewarm(proc: JobProcess):
 
 async def entrypoint(ctx: JobContext):
     logger.info("Agent job started room=%s", ctx.room.name)
+    # Log STT/TTS config (no secrets) so failures are easier to debug
+    logger.info(
+        "STT URL: %s | TTS URL: %s",
+        (app_settings.WHISPER_STT_URL or "").strip() or "(not set)",
+        (app_settings.PIPER_TTS_URL or "").strip() or "(not set)",
+    )
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
     participant = await ctx.wait_for_participant()
@@ -124,7 +145,7 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning(f"Failed to send transcript: {e}")
 
-    # STT — Whisper.cpp only
+    # STT — Whisper.cpp only (openai-compatible)
     from livekit.plugins import openai as openai_plugin
 
     whisper_url = (app_settings.WHISPER_STT_URL or "").strip()
@@ -136,10 +157,10 @@ async def entrypoint(ctx: JobContext):
         api_key="sk-self-hosted",
         model="whisper-1",
         language=(stt_language or "en").split("-")[0],
-        http_session=httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0),
-        ),
     )
+    # Monkey-patch: Whisper.cpp on CPU needs longer timeout than default 5s read
+    if hasattr(stt, "_client") and hasattr(stt._client, "_client"):
+        stt._client._client.timeout = httpx.Timeout(60.0)
     logger.info("STT: self-hosted Whisper.cpp at %s", whisper_url)
 
     # LLM
@@ -187,6 +208,7 @@ async def entrypoint(ctx: JobContext):
     )
     logger.info("TTS: self-hosted Piper at %s (voice=%s)", piper_tts_url, piper_voice)
 
+    # AgentSession — use TurnHandlingConfig if available, else standard kwargs
     _session_kw: dict = {
         "vad": ctx.proc.userdata["vad"],
         "stt": stt,
@@ -197,6 +219,7 @@ async def entrypoint(ctx: JobContext):
     }
     try:
         from livekit.agents.voice import TurnHandlingConfig
+
         _session_kw["turn_handling"] = TurnHandlingConfig(
             min_endpointing_delay=0.1,
             max_endpointing_delay=0.6,
@@ -210,8 +233,11 @@ async def entrypoint(ctx: JobContext):
         _session_kw["max_endpointing_delay"] = 0.6
         _session_kw["min_interruption_duration"] = 0.3
         _session_kw["min_interruption_words"] = 2
+
+    # Add optional params only if AgentSession accepts them
     try:
         from inspect import signature
+
         sig = signature(AgentSession.__init__)
         if "use_remote_turn_detector" in sig.parameters:
             _session_kw["use_remote_turn_detector"] = False
@@ -223,6 +249,7 @@ async def entrypoint(ctx: JobContext):
             _session_kw["resume_false_interruption"] = False
     except Exception:
         pass
+
     session = AgentSession(**_session_kw)
 
     @session.on("user_input_transcribed")

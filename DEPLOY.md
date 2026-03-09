@@ -6,7 +6,7 @@
 - **Frontend:** Next.js (Docker)
 - **Agent Worker:** LiveKit agent (Docker)
 - **TTS:** Piper (self-hosted, e.g. `18.141.177.170:8880`)
-- **STT:** Whisper.cpp (self-hosted, e.g. `18.141.177.170:8002`)
+- **STT:** Whisper.cpp (self-hosted, e.g. `18.141.177.170:8002`) — **must be port 8002**, not 8000
 - **LLM:** Groq (`llama-3.3-70b-versatile`)
 - **Auth:** Supabase
 - **Voice / rooms:** LiveKit + SIP
@@ -211,7 +211,11 @@ and in the frontend `.env.production`: `NEXT_PUBLIC_API_URL=https://resonaai.duc
 - [ ] Supabase project and keys correct; auth (sign-up/sign-in) works.
 - [ ] Twilio/SIP (if used): `LIVEKIT_SIP_URI` and origination configured; worker and backend use same LiveKit API URL.
 
-## 7. Quick health checks
+## 7. Server checks (both servers)
+
+See **[SERVER-CHECKS.md](SERVER-CHECKS.md)** for commands to run on each server (main + TTS/STT) and a quick fix checklist. Common issue: `WHISPER_STT_URL` must use port **8002** on the TTS/STT host.
+
+## 8. Quick health checks
 
 ```bash
 # Backend

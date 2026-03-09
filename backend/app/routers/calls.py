@@ -184,10 +184,10 @@ async def make_outbound_call(
             "system_prompt": full_system_prompt,
             "first_message": agent.first_message
             or "Hi, how can I help you today?",
-            "tts_voice_id": voice_id,
-            "tts_provider": "deepgram",
-            "stt_model": agent.stt_model or "nova-2-general",
+            "stt_provider": "whisper",
             "stt_language": agent.stt_language or "en-US",
+            "tts_voice_id": voice_id,
+            "tts_provider": "piper",
             "silence_timeout": int(agent.silence_timeout or 30),
             "max_duration": int(agent.max_duration or 3600),
             "call_id": str(call_id),
