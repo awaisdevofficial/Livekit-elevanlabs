@@ -2,7 +2,7 @@ from typing import Any, List
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,41 +19,26 @@ router = APIRouter()
 
 
 def _piper_base_url() -> str:
-    """Derive Piper TTS base URL from PIPER_TTS_URL (strip /v1/audio/speech or /audio/speech)."""
-    base = (settings.PIPER_TTS_URL or "").strip().rstrip("/")
-    if not base:
+    """Base URL for Piper API including /v1 (e.g. http://host:8880/v1)."""
+    url = (settings.PIPER_TTS_URL or settings.KOKORO_TTS_URL or "").strip().rstrip("/")
+    if not url:
         return ""
     for suffix in ["/v1/audio/speech", "/audio/speech"]:
-        if base.endswith(suffix):
-            base = base[: -len(suffix)].rstrip("/")
+        if url.endswith(suffix):
+            url = url[: -len(suffix)].rstrip("/")
             break
-    return base
+    if not url.endswith("/v1"):
+        url = url + "/v1"
+    return url
 
 
-PIPER_FALLBACK_VOICES: List[dict[str, Any]] = [
-    {"id": "en_US-amy-medium", "name": "Amy", "provider": "piper", "language": "English", "language_code": "en_US", "gender": "female", "quality": "medium", "description": "English — Female"},
-    {"id": "en_US-joe-medium", "name": "Joe", "provider": "piper", "language": "English", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English — Male"},
-    {"id": "en_US-ryan-medium", "name": "Ryan", "provider": "piper", "language": "English", "language_code": "en_US", "gender": "male", "quality": "medium", "description": "English — Male"},
+PIPER_VOICES_FALLBACK: list[tuple[str, str, str]] = [
+    ("en_US-amy-medium", "Amy", "female"),
+    ("en_US-joe-medium", "Joe", "male"),
+    ("en_US-ryan-medium", "Ryan", "male"),
+    ("en_GB-alan-medium", "Alan", "male"),
+    ("en_US-kathleen-low", "Kathleen", "female"),
 ]
-
-
-async def fetch_piper_voices() -> List[dict[str, Any]]:
-    """Fetch available voices from Piper TTS server (GET /v1/voices). Returns fallback on failure."""
-    base = _piper_base_url()
-    if not base:
-        return []
-    url = f"{base}/v1/voices"
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, list):
-                    return data
-                return []
-    except Exception:
-        pass
-    return PIPER_FALLBACK_VOICES
 
 
 class Voice(BaseModel):
@@ -102,6 +87,36 @@ async def _get_user_voice_profiles(
     return voices
 
 
+async def _fetch_piper_voices() -> list[Voice]:
+    """Fetch available voices from Piper server (GET /v1/voices). Returns fallback list on failure."""
+    base = _piper_base_url()
+    if base:
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(f"{base}/voices")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    voices = []
+                    for v in data if isinstance(data, list) else []:
+                        voices.append(
+                            Voice(
+                                id=v.get("id", ""),
+                                name=v.get("name", ""),
+                                provider="piper",
+                                gender=v.get("gender", "neutral"),
+                                description=v.get("description", ""),
+                            )
+                        )
+                    if voices:
+                        return voices
+        except Exception:
+            pass
+    return [
+        Voice(id=v[0], name=v[1], provider="piper", gender=v[2], description=f"Piper TTS — {v[2]}")
+        for v in PIPER_VOICES_FALLBACK
+    ]
+
+
 def _cartesia_voices() -> list[Voice]:
     return [
         Voice(id=DEFAULT_CARTESIA_VOICE_ID, name="Katie", gender="female", provider="cartesia", description="Stable, natural – recommended for agents", language="English", language_code="en"),
@@ -138,12 +153,7 @@ async def get_voices(
     base = _piper_base_url()
 
     if base:
-        piper_list = await fetch_piper_voices()
-        for item in piper_list:
-            if isinstance(item, dict):
-                voices.append(_piper_voice_to_voice(item))
-            else:
-                voices.append(Voice(id=str(item), name=str(item), provider="piper"))
+        voices.extend(await _fetch_piper_voices())
 
     if settings.CARTESIA_API_KEY:
         voices.extend(_cartesia_voices())
@@ -159,57 +169,32 @@ async def get_voices(
     return voices
 
 
-def _tts_speech_url() -> str:
-    """Full URL for Piper TTS synthesis (POST)."""
-    base = _piper_base_url()
-    if not base:
-        return ""
-    return f"{base}/v1/audio/speech"
-
-
 @router.post("/preview")
 async def preview_voice(body: VoicePreviewRequest, user: User = Depends(get_current_user)):  # noqa: ARG001
-    """
-    Generate a short audio preview. For provider piper or kokoro: calls PIPER_TTS_URL with model, input, voice; returns audio/wav.
-    Cartesia only when CARTESIA_API_KEY is set and provider is cartesia.
-    """
-    provider = (body.provider or "").strip().lower()
-    text = (body.text or "").strip() or "Hi, I am your AI voice assistant, ready to help you on every call."
-    voice_id = (body.voice_id or "").strip() or DEFAULT_PIPER_VOICE
-    tts_url = _tts_speech_url()
-    use_piper = provider in ("piper", "kokoro") or (not provider and bool(tts_url))
+    """Generate a short audio preview. Supports provider: piper, kokoro, cartesia."""
+    provider = (body.provider or "").lower() or "piper"
+    text = body.text.strip() or "Hi, I am your AI voice assistant, ready to help you on every call."
 
-    if use_piper:
-        if not tts_url:
-            raise HTTPException(
-                status_code=503,
-                detail="Piper TTS not configured. Set PIPER_TTS_URL for voice preview.",
+    if provider in ("piper", "kokoro"):
+        base = _piper_base_url()
+        if not base:
+            raise HTTPException(status_code=400, detail="Piper TTS not configured (set PIPER_TTS_URL)")
+        voice = (body.voice_id or "").strip() or (settings.PIPER_TTS_VOICE or settings.KOKORO_TTS_VOICE or "en_US-amy-medium").strip()
+        model = (settings.PIPER_TTS_MODEL or settings.KOKORO_TTS_MODEL or "tts-1").strip()
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{base}/audio/speech",
+                headers={"Content-Type": "application/json"},
+                json={"model": model, "voice": voice, "input": text},
             )
-        payload = {
-            "model": (settings.PIPER_TTS_MODEL or "tts-1").strip(),
-            "input": text,
-            "voice": voice_id,
-        }
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    tts_url,
-                    headers={"Content-Type": "application/json"},
-                    json=payload,
-                )
-            if resp.status_code != 200:
-                raise HTTPException(status_code=502, detail="TTS preview failed")
-            return Response(content=resp.content, media_type="audio/wav")
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"TTS request failed: {e!s}") from e
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"Piper TTS preview failed: {resp.text}")
+        return StreamingResponse(iter([resp.content]), media_type="audio/wav")
 
     if provider == "cartesia":
         if not settings.CARTESIA_API_KEY:
-            raise HTTPException(
-                status_code=503,
-                detail="Cartesia not configured. Set CARTESIA_API_KEY for Cartesia preview.",
-            )
-        vid = body.voice_id if _is_cartesia_voice_id(body.voice_id or "") else DEFAULT_CARTESIA_VOICE_ID
+            raise HTTPException(status_code=400, detail="Cartesia API key not configured")
+        voice_id = body.voice_id if _is_cartesia_voice_id(body.voice_id or "") else DEFAULT_CARTESIA_VOICE_ID
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 "https://api.cartesia.ai/tts/bytes",
@@ -221,7 +206,7 @@ async def preview_voice(body: VoicePreviewRequest, user: User = Depends(get_curr
                 json={
                     "model_id": "sonic-3",
                     "transcript": text,
-                    "voice": {"mode": "id", "id": vid},
+                    "voice": {"mode": "id", "id": voice_id},
                     "output_format": {"container": "mp3", "sample_rate": 24000, "bit_rate": 128000},
                 },
             )
@@ -229,7 +214,4 @@ async def preview_voice(body: VoicePreviewRequest, user: User = Depends(get_curr
             raise HTTPException(status_code=502, detail="Cartesia TTS failed")
         return StreamingResponse(iter([resp.content]), media_type="audio/mpeg")
 
-    raise HTTPException(
-        status_code=503,
-        detail="No TTS configured for preview. Set PIPER_TTS_URL and use provider 'piper' or 'kokoro', or set CARTESIA_API_KEY and use 'cartesia'.",
-    )
+    raise HTTPException(status_code=400, detail="Use provider 'piper', 'kokoro', or 'cartesia'.")

@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     PIPER_TTS_URL: str = ""
     PIPER_TTS_VOICE: str = "en_US-amy-medium"
     PIPER_TTS_MODEL: str = "tts-1"
+    # Backward compat: old env var names (Kokoro → Piper)
+    KOKORO_TTS_URL: str = ""
+    KOKORO_TTS_VOICE: str = "en_US-amy-medium"
+    KOKORO_TTS_MODEL: str = "tts-1"
     WHISPER_STT_URL: str = ""
 
     # Supabase
