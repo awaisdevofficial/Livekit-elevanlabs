@@ -122,56 +122,20 @@ async def get_tts_settings(
     user: User = Depends(get_current_user),  # noqa: ARG001
 ):
     """
-    Return available TTS/STT providers for display in the Settings UI.
-
-    This is deployment-wide configuration (from environment variables),
-    not per-user API keys.
+    Return TTS/STT provider status. Only Piper + Whisper.cpp (self-hosted) are supported.
     """
-    deepgram_configured = bool(settings.DEEPGRAM_API_KEY)
     whisper_configured = bool(_base_url_from_speech_url(settings.WHISPER_STT_URL))
     piper_configured = bool(_base_url_from_speech_url(settings.PIPER_TTS_URL))
-    cartesia_configured = bool(settings.CARTESIA_API_KEY)
-
-    # Default: self-hosted if set, else Deepgram/Cartesia
-    if whisper_configured and piper_configured:
-        default_provider = "whisper_kokoro"
-    elif deepgram_configured:
-        default_provider = "deepgram"
-    else:
-        default_provider = "whisper_kokoro" if whisper_configured else "deepgram"
-
-    providers = []
-    if deepgram_configured:
-        providers.append(
-            TTSProviderStatus(
-                id="deepgram",
-                label="Deepgram Aura",
-                configured=True,
-                recommended=not (whisper_configured or piper_configured),
-                cost_display="STT + TTS (usage-based)",
-            )
+    default_provider = "whisper_kokoro"
+    providers = [
+        TTSProviderStatus(
+            id="whisper_kokoro",
+            label="Self-hosted (Whisper.cpp STT + Piper TTS)",
+            configured=whisper_configured and piper_configured,
+            recommended=True,
+            cost_display="Free (self-hosted)" if (whisper_configured and piper_configured) else "Set PIPER_TTS_URL and WHISPER_STT_URL in .env",
         )
-    if whisper_configured or piper_configured:
-        providers.append(
-            TTSProviderStatus(
-                id="whisper_kokoro",
-                label="Self-hosted (Whisper.cpp STT + Piper TTS)",
-                configured=True,
-                recommended=whisper_configured and piper_configured,
-                cost_display="Free (self-hosted)",
-            )
-        )
-    if not providers:
-        providers.append(
-            TTSProviderStatus(
-                id="whisper_kokoro",
-                label="Self-hosted (Whisper.cpp STT + Piper TTS)",
-                configured=False,
-                recommended=True,
-                cost_display="Set PIPER_TTS_URL and WHISPER_STT_URL in .env",
-            )
-        )
-
+    ]
     return TTSSettingsResponse(default_provider=default_provider, providers=providers)
 
 

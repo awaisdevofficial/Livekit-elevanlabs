@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button"
 import { API_BASE_URL, getAuthToken } from "@/lib/api"
 import { cn } from "@/components/lib-utils"
 
-export type VoiceProvider = "piper" | "kokoro" | "cartesia" | "deepgram"
+export type VoiceProvider = "piper" | "kokoro"
 
 export interface Voice {
   id: string
@@ -43,8 +43,6 @@ const LANG_FLAGS: Record<string, string> = {
 const providerLabel: Record<string, string> = {
   piper: "Piper TTS",
   kokoro: "Piper TTS",
-  cartesia: "Cartesia",
-  deepgram: "Deepgram",
 }
 
 type TabFilter = "all" | "english" | "other"
@@ -166,7 +164,11 @@ export function VoiceLibrary({
   }, [voices])
 
   const filteredVoices = useMemo(() => {
-    return voices.filter((v) => {
+    const piperOnly = voices.filter((v) => {
+      const p = (v.provider || "").toLowerCase()
+      return p === "piper" || p === "kokoro"
+    })
+    return piperOnly.filter((v) => {
       if (tab === "english" && !(v.language_code || "").toLowerCase().startsWith("en")) return false
       if (tab === "other" && (v.language_code || "").toLowerCase().startsWith("en")) return false
       if (languageFilter !== "all" && (v.language || "Unknown") !== languageFilter) return false
@@ -227,7 +229,7 @@ export function VoiceLibrary({
                     Voice library
                   </h2>
                   <p className="text-xs text-white/70 mt-0.5">
-                    Browse Piper and other TTS voices. Filter by language and preview before selecting.
+                    Piper TTS is your voice engine. Self-hosted and private.
                   </p>
                 </div>
                 <button

@@ -8,12 +8,6 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from app.config import settings as app_settings
-from app.constants import (
-    DEFAULT_CARTESIA_VOICE_ID,
-    DEFAULT_PIPER_VOICE,
-    get_tts_provider_and_voice_id,
-    _is_cartesia_voice_id,
-)
 from app.prompts import get_full_system_prompt
 import httpx
 from livekit.agents import (
@@ -27,20 +21,9 @@ from livekit.agents.llm import FallbackAdapter, function_tool
 from livekit.agents.voice import Agent, AgentSession
 from livekit.agents.voice.events import UserInputTranscribedEvent
 from livekit.agents.voice import room_io as voice_room_io
-from livekit.plugins import cartesia, deepgram, silero, groq
+from livekit.plugins import silero, groq
 
 load_dotenv()
-
-
-def _base_url_from_speech_url(url: str) -> str:
-    """Normalize PIPER_TTS_URL / WHISPER_STT_URL to OpenAI-style base (e.g. http://host:port/v1)."""
-    url = (url or "").strip().rstrip("/")
-    if not url:
-        return ""
-    if "/v1" in url:
-        idx = url.find("/v1")
-        return url[: idx + 3]  # include "/v1" (no trailing slash)
-    return url if url.endswith("/v1") else f"{url}/v1"
 
 logger = logging.getLogger("resona-agent")
 logging.basicConfig(level=logging.INFO)
@@ -80,8 +63,6 @@ async def entrypoint(ctx: JobContext):
     except Exception:
         agent_config = {}
 
-    # If no metadata was provided, this is likely an inbound SIP call where
-    # the room was created by a dispatch rule using the `sip-{user_id}-*` prefix.
     if not agent_config:
         room_name = ctx.room.name or ""
         parts = room_name.split("-")
@@ -104,12 +85,11 @@ async def entrypoint(ctx: JobContext):
                 logger.warning(f"Failed to fetch default agent config for user {user_id}: {e}")
 
         if not agent_config:
-            # Fallback config if we couldn't resolve a user/agent (short first message for fast TTS start)
             agent_config = {
                 "system_prompt": "You are a helpful voice AI assistant.",
                 "first_message": "Hi, how can I help?",
-                "tts_provider": "cartesia",
-                "tts_voice_id": DEFAULT_CARTESIA_VOICE_ID,
+                "tts_provider": "piper",
+                "tts_voice_id": "en_US-amy-medium",
             }
 
     base_system_prompt = agent_config.get(
@@ -124,22 +104,14 @@ async def entrypoint(ctx: JobContext):
             + kb_content
             + "\n=== END KNOWLEDGE BASE ==="
         )
-    # Prepend human-behavior instructions (metadata may already include them; avoid duplicate)
     if base_system_prompt.strip().startswith("Speak exactly like a real human"):
         system_prompt = base_system_prompt
     else:
         system_prompt = get_full_system_prompt(base_system_prompt)
     first_message = agent_config.get("first_message", "Hi, how can I help?")
 
-    # Determine TTS/STT configuration from metadata (STT=Deepgram, TTS=Cartesia default)
     stt_language = agent_config.get("stt_language", "en-US")
-    stt_model = agent_config.get("stt_model") or "nova-2-general"
 
-    _, tts_voice_id = get_tts_provider_and_voice_id(
-        agent_config.get("tts_provider"), agent_config.get("tts_voice_id")
-    )
-
-    # Track transcript lines and call duration
     transcript_lines: list[dict] = []
     start_time = time.time()
 
@@ -152,44 +124,31 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning(f"Failed to send transcript: {e}")
 
-    # STT: self-hosted Whisper (WHISPER_STT_URL) or Deepgram
-    whisper_stt_url = os.environ.get("WHISPER_STT_URL", "").strip()
-    groq_key = os.environ.get("GROQ_API_KEY", "").strip()
+    # STT — Whisper.cpp only
+    from livekit.plugins import openai as openai_plugin
+
+    whisper_url = (app_settings.WHISPER_STT_URL or "").strip()
+    if not whisper_url:
+        raise RuntimeError("WHISPER_STT_URL is not configured. Cannot start agent worker.")
+
+    whisper_base = whisper_url.replace("/v1/audio/transcriptions", "").rstrip("/")
+    if not whisper_base.endswith("/v1"):
+        whisper_base = whisper_base + "/v1"
+
+    stt = openai_plugin.STT(
+        base_url=whisper_base,
+        api_key="sk-self-hosted",
+        model="whisper-1",
+        language=(stt_language or "en").split("-")[0],
+        use_realtime=False,
+    )
+    logger.info("STT: self-hosted Whisper.cpp at %s", whisper_url)
+
+    # LLM
+    groq_key = (os.environ.get("GROQ_API_KEY") or "").strip()
     if not groq_key:
         raise RuntimeError("GROQ_API_KEY is required for the LLM. Set it in the environment.")
 
-    if whisper_stt_url:
-        from livekit.plugins import openai as openai_plugin
-        whisper_base = _base_url_from_speech_url(whisper_stt_url)
-        if not whisper_base:
-            raise RuntimeError("WHISPER_STT_URL must be a valid URL (e.g. http://host:8000/v1/audio/transcriptions).")
-        # Self-hosted Whisper: OpenAI-compatible API; dummy key if no auth required
-        stt = openai_plugin.STT(
-            model="whisper-1",
-            language=(stt_language or "en").split("-")[0],
-            base_url=whisper_base,
-            api_key=os.environ.get("OPENAI_API_KEY", "sk-self-hosted"),
-            use_realtime=False,
-        )
-        logger.info("STT: self-hosted Whisper at %s", whisper_base)
-    else:
-        deepgram_key = os.environ.get("DEEPGRAM_API_KEY", "").strip()
-        if not deepgram_key:
-            raise RuntimeError("DEEPGRAM_API_KEY or WHISPER_STT_URL is required for STT. Set one in the environment.")
-        # STT: 200ms endpointing; no filler_words (faster STT finalization)
-        stt = deepgram.STT(
-            model=stt_model,
-            api_key=deepgram_key,
-            language=stt_language or "en-US",
-            sample_rate=16000,
-            interim_results=True,
-            endpointing_ms=200,
-            no_delay=True,
-            vad_events=True,
-            filler_words=False,
-        )
-        logger.info("STT: Deepgram")
-    # LLM: Groq primary; OpenAI as fallback on rate limit (429) or connection errors
     primary_llm = groq.LLM(
         model="llama-3.3-70b-versatile",
         api_key=groq_key,
@@ -197,7 +156,6 @@ async def entrypoint(ctx: JobContext):
     )
     openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if openai_key:
-        from livekit.plugins import openai as openai_plugin
         fallback_llm = openai_plugin.LLM(
             model="gpt-4o-mini",
             api_key=openai_key,
@@ -211,43 +169,27 @@ async def entrypoint(ctx: JobContext):
     else:
         llm = primary_llm
         logger.info("LLM: Groq only (set OPENAI_API_KEY for fallback)")
-    # TTS: self-hosted Piper (PIPER_TTS_URL) first, then Cartesia
-    piper_tts_url = os.environ.get("PIPER_TTS_URL", "").strip()
-    if piper_tts_url:
-        from livekit.plugins import openai as openai_plugin
-        piper_base = _base_url_from_speech_url(piper_tts_url)
-        if not piper_base:
-            raise RuntimeError("PIPER_TTS_URL must be a valid URL (e.g. http://host:8880/v1/audio/speech).")
-        # Piper voice: use agent's tts_voice_id if set and not a Cartesia UUID, else config default.
-        raw_voice = (agent_config.get("tts_voice_id") or "").strip()
-        if _is_cartesia_voice_id(raw_voice) or not raw_voice:
-            piper_voice = (app_settings.PIPER_TTS_VOICE or DEFAULT_PIPER_VOICE or "en_US-amy-medium").strip()
-        else:
-            piper_voice = raw_voice
-        piper_model = app_settings.PIPER_TTS_MODEL or "tts-1"
-        tts = openai_plugin.TTS(
-            model=piper_model,
-            voice=piper_voice,
-            base_url=piper_base,
-            api_key=os.environ.get("OPENAI_API_KEY", "sk-self-hosted"),
-            response_format="mp3",
-        )
-        logger.info("TTS: self-hosted Piper at %s (model=%s voice=%s)", piper_base, piper_model, piper_voice)
-    else:
-        cartesia_key = os.environ.get("CARTESIA_API_KEY", "").strip()
-        if not cartesia_key:
-            raise RuntimeError(
-                "CARTESIA_API_KEY or PIPER_TTS_URL is required for TTS. Set one in the environment."
-            )
-        tts = cartesia.TTS(
-            model="sonic-3",
-            voice=tts_voice_id or DEFAULT_CARTESIA_VOICE_ID,
-            api_key=cartesia_key,
-            sample_rate=24000,
-        )
-        logger.info("TTS: Cartesia")
 
-    # Use VAD for turn detection; prefer TurnHandlingConfig when available (livekit-agents 1.5+).
+    # TTS — Piper only
+    piper_tts_url = (app_settings.PIPER_TTS_URL or "").strip()
+    if not piper_tts_url:
+        raise RuntimeError("PIPER_TTS_URL is not configured. Cannot start agent worker.")
+
+    piper_base = piper_tts_url.replace("/v1/audio/speech", "").replace("/audio/speech", "").rstrip("/")
+    if not piper_base.endswith("/v1"):
+        piper_base = piper_base + "/v1"
+
+    piper_voice = (agent_config.get("tts_voice_id") or "").strip() or (app_settings.PIPER_TTS_VOICE or "en_US-amy-medium").strip()
+
+    tts = openai_plugin.TTS(
+        base_url=piper_base,
+        api_key="sk-self-hosted",
+        model=app_settings.PIPER_TTS_MODEL or "tts-1",
+        voice=piper_voice,
+        response_format="wav",
+    )
+    logger.info("TTS: self-hosted Piper at %s (voice=%s)", piper_tts_url, piper_voice)
+
     _session_kw: dict = {
         "vad": ctx.proc.userdata["vad"],
         "stt": stt,
@@ -271,7 +213,6 @@ async def entrypoint(ctx: JobContext):
         _session_kw["max_endpointing_delay"] = 0.6
         _session_kw["min_interruption_duration"] = 0.3
         _session_kw["min_interruption_words"] = 2
-    # Self-hosted LiveKit: disable cloud barge-in; use local VAD only. Optional args (livekit-agents 1.5+).
     try:
         from inspect import signature
         sig = signature(AgentSession.__init__)
@@ -350,7 +291,6 @@ async def entrypoint(ctx: JobContext):
         ctx.room.name,
         agent_config.get("agent_speaks_first", True),
     )
-    # Deepgram STT expects 16 kHz; use RoomOptions (RoomInputOptions is deprecated).
     room_options = voice_room_io.RoomOptions(
         audio_input=voice_room_io.AudioInputOptions(sample_rate=16000),
     )
@@ -375,7 +315,6 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
-    # Default HTTP port 8081; override with LIVEKIT_AGENT_HTTP_PORT if something else uses 8081
     _http_port = int(os.environ.get("LIVEKIT_AGENT_HTTP_PORT", "8081"))
     cli.run_app(
         WorkerOptions(
