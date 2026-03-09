@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 from app.config import settings as app_settings
 from app.prompts import get_full_system_prompt
 import httpx
-from openai import AsyncOpenAI
 from livekit.agents import (
     AutoSubscribe,
     JobContext,
@@ -132,24 +131,14 @@ async def entrypoint(ctx: JobContext):
     if not whisper_url:
         raise RuntimeError("WHISPER_STT_URL is not configured. Cannot start agent worker.")
 
-    whisper_base = whisper_url.replace("/v1/audio/transcriptions", "").rstrip("/")
-    if not whisper_base.endswith("/v1"):
-        whisper_base = whisper_base + "/v1"
-
-    whisper_client = AsyncOpenAI(
-        max_retries=0,
-        api_key="sk-self-hosted",
-        base_url=whisper_base,
-        http_client=httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0, connect=10.0),
-            follow_redirects=True,
-        ),
-    )
     stt = openai_plugin.STT(
-        client=whisper_client,
+        base_url=whisper_url.replace("/v1/audio/transcriptions", ""),
+        api_key="sk-self-hosted",
         model="whisper-1",
         language=(stt_language or "en").split("-")[0],
-        use_realtime=False,
+        http_session=httpx.AsyncClient(
+            timeout=httpx.Timeout(60.0),
+        ),
     )
     logger.info("STT: self-hosted Whisper.cpp at %s", whisper_url)
 
