@@ -1,0 +1,27 @@
+# Deploy to main server on push to main.
+# Required repo secrets: DEPLOY_HOST, DEPLOY_USER, SSH_PRIVATE_KEY
+# Optional: PROJECT_DIR (default /home/ubuntu/resona.ai)
+name: Deploy to server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Pull, build, restart on server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy on server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            PROJECT_DIR="${PROJECT_DIR:-/home/ubuntu/resona.ai}"
+            cd "$PROJECT_DIR" || { echo "Project dir not found: $PROJECT_DIR"; exit 1; }
+            git fetch origin
+            git pull origin main
+            bash scripts/pull-build-restart-main.sh
