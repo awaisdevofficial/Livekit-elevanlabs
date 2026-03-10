@@ -55,7 +55,19 @@ if grep -q 'use_for' backend/app/models/phone_number.py 2>/dev/null && [ -f fron
 else
   echo "WARN: Phone Numbers/use_for not found"
 fi
-echo "Verification: $CHECKS/5 checks passed"
+if grep -q 'streaming_latency' backend/agent_worker.py 2>/dev/null; then
+  echo "OK: TTS streaming_latency in agent_worker.py"
+  CHECKS=$((CHECKS+1))
+else
+  echo "WARN: streaming_latency not found in agent_worker"
+fi
+if grep -q '\[inbound\]' backend/app/routers/twilio_webhook.py 2>/dev/null; then
+  echo "OK: Inbound webhook timing logs in twilio_webhook.py"
+  CHECKS=$((CHECKS+1))
+else
+  echo "WARN: [inbound] timing logs not found in twilio_webhook"
+fi
+echo "Verification: $CHECKS/7 checks passed"
 
 echo ""
 echo "=== Run DB migrations (alembic) ==="
