@@ -49,7 +49,17 @@ if [ -f frontend/app/\(dashboard\)/live-calls/\[roomId\]/page.tsx ]; then
 else
   echo "WARN: live-calls/[roomId]/page.tsx not found"
 fi
-echo "Verification: $CHECKS/4 checks passed"
+if grep -q 'use_for' backend/app/models/phone_number.py 2>/dev/null && [ -f frontend/app/\(dashboard\)/phone-numbers/page.tsx ]; then
+  echo "OK: Phone Numbers page and use_for in backend"
+  CHECKS=$((CHECKS+1))
+else
+  echo "WARN: Phone Numbers/use_for not found"
+fi
+echo "Verification: $CHECKS/5 checks passed"
+
+echo ""
+echo "=== Run DB migrations (alembic) ==="
+docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" --env-file backend/.env.production run --rm backend alembic upgrade head 2>/dev/null || true
 
 echo ""
 echo "=== Build and restart (deploy-main) ==="
