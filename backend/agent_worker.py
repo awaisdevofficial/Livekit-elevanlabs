@@ -218,7 +218,15 @@ async def entrypoint(ctx: JobContext):
     if not groq_key:
         raise RuntimeError("GROQ_API_KEY is required for the LLM. Set it in DB (api-keys) or environment.")
 
-    llm_model = (agent_config.get("llm_model") or "llama-3.3-70b-versatile").strip()
+    _raw_llm_model = (agent_config.get("llm_model") or "llama-3.3-70b-versatile").strip()
+    # Groq API does not have OpenAI models (gpt-4o, etc.). Use Groq model when calling Groq.
+    GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
+    if _raw_llm_model.startswith("gpt-") or _raw_llm_model.startswith("o1-"):
+        llm_model = GROQ_DEFAULT_MODEL
+        logger.info("LLM: agent model %s is not a Groq model, using %s", _raw_llm_model, llm_model)
+    else:
+        llm_model = _raw_llm_model or GROQ_DEFAULT_MODEL
+
     llm_temperature = float(agent_config.get("llm_temperature", 0.8))
     llm_max_tokens = int(agent_config.get("llm_max_tokens", 150))
     llm_temperature = max(0.5, min(1.0, llm_temperature))
