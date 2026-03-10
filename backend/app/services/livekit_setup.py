@@ -11,6 +11,7 @@ from livekit.protocol.sip import (
     CreateSIPOutboundTrunkRequest,
     DeleteSIPDispatchRuleRequest,
     DeleteSIPTrunkRequest,
+    ListSIPDispatchRuleRequest,
     ListSIPInboundTrunkRequest,
     SIPDispatchRule,
     SIPDispatchRuleIndividual,
@@ -63,10 +64,19 @@ class LiveKitSetupService:
         """Create inbound SIP trunk for the given number. Returns inbound_trunk_id."""
         return await self.get_or_create_inbound_trunk(phone_number, user_id)
 
-    async def create_dispatch_rule(self, inbound_trunk_id: str, user_id: str) -> str:
-        """Create dispatch rule for inbound trunk. Returns dispatch_rule_id."""
+    async def get_or_create_dispatch_rule(self, inbound_trunk_id: str, user_id: str) -> str:
+        """Reuse existing dispatch rule for this trunk if present, else create. Returns dispatch_rule_id."""
         lk = _livekit_api()
         try:
+            existing = await lk.sip.list_sip_dispatch_rule(ListSIPDispatchRuleRequest())
+            for item in existing.items:
+                if inbound_trunk_id in (item.trunk_ids or []):
+                    logger.info(
+                        "Reusing existing LiveKit dispatch rule %s for trunk %s",
+                        item.sip_dispatch_rule_id,
+                        inbound_trunk_id,
+                    )
+                    return item.sip_dispatch_rule_id
             rule = await lk.sip.create_sip_dispatch_rule(
                 CreateSIPDispatchRuleRequest(
                     name=f"Dispatch-{user_id[:8]}",
@@ -84,6 +94,10 @@ class LiveKitSetupService:
             return rule_id
         finally:
             await lk.aclose()
+
+    async def create_dispatch_rule(self, inbound_trunk_id: str, user_id: str) -> str:
+        """Create dispatch rule for inbound trunk. Returns dispatch_rule_id."""
+        return await self.get_or_create_dispatch_rule(inbound_trunk_id, user_id)
 
     async def create_outbound_trunk(
         self,
