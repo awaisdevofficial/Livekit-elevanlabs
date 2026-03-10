@@ -109,9 +109,9 @@ export default function PhoneNumbersPage() {
                 Connect your phone account
               </h3>
               <p className="text-sm text-white/70 mb-4">
-                To import and use phone numbers, connect your Twilio account and
-                number in Settings first. Then return here to import numbers and
-                assign them to agents.
+                Connect your Twilio account and phone number in Settings →
+                Integrations (one place for all calling). Then return here to
+                import numbers and assign them to agents.
               </p>
               <Link
                 href="/settings"

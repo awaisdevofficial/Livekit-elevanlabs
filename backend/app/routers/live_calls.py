@@ -170,14 +170,14 @@ async def transfer_call(
             await r.aclose()
 
     if call_sid:
-        account_sid = getattr(current_user, "twilio_account_sid", None)
-        auth_token = getattr(current_user, "twilio_auth_token", None)
-        if account_sid and auth_token:
-            from twilio.rest import Client
-            client = Client(account_sid, auth_token)
+        try:
+            from app.services.twilio_client import get_twilio_client
+            client = await get_twilio_client(current_user, db)
             client.calls(call_sid).update(
                 twiml=f'<Response><Dial>{to_number}</Dial></Response>'
             )
+        except ValueError:
+            pass
 
     r = aioredis.from_url(settings.REDIS_URL)
     try:
@@ -211,13 +211,13 @@ async def end_call_by_room(
     call = result.scalar_one_or_none()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
-    if call.twilio_sid and getattr(current_user, "twilio_account_sid", None) and getattr(current_user, "twilio_auth_token", None):
-        from twilio.rest import Client
-        client = Client(
-            current_user.twilio_account_sid,
-            current_user.twilio_auth_token,
-        )
-        client.calls(call.twilio_sid).update(status="completed")
+    if call.twilio_sid:
+        try:
+            from app.services.twilio_client import get_twilio_client
+            client = await get_twilio_client(current_user, db)
+            client.calls(call.twilio_sid).update(status="completed")
+        except ValueError:
+            pass
     call.status = "completed"
     call.ended_at = datetime.utcnow()
     await db.commit()
@@ -266,14 +266,13 @@ async def internal_transfer(
     user = result_user.scalar_one_or_none()
     if not user:
         return {"status": "error", "message": "User not found"}
-    account_sid = getattr(user, "twilio_account_sid", None)
-    auth_token = getattr(user, "twilio_auth_token", None)
-    if not account_sid or not auth_token:
+    try:
+        from app.services.twilio_client import get_twilio_client
+        client = await get_twilio_client(user, db)
+    except ValueError:
         logger.warning("No Twilio credentials for user %s", user_id)
         return {"status": "error", "message": "Twilio not configured"}
 
-    from twilio.rest import Client
-    client = Client(account_sid, auth_token)
     client.calls(call_sid).update(
         twiml=f'<Response><Dial>{to_number}</Dial></Response>'
     )

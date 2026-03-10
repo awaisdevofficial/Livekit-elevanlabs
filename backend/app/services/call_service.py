@@ -6,10 +6,11 @@ from livekit.api import TwirpError
 from livekit.protocol.sip import CreateSIPParticipantRequest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from twilio.rest import Client
 
 from app.config import settings
 from app.models.telephony import UserTelephonyConfig
+from app.models.user import User
+from app.services.twilio_client import get_twilio_client
 
 logger = logging.getLogger(__name__)
 
@@ -105,20 +106,23 @@ async def make_outbound_call(
         await lk.aclose()
 
 
-async def initiate_outbound_call(agent, user, to_number: str, call_id: str) -> str:
-    """Use the user's Twilio credentials from the database to make the call."""
-    account_sid = getattr(user, "twilio_account_sid", None)
-    auth_token = getattr(user, "twilio_auth_token", None)
-    from_number = getattr(user, "twilio_from_number", None)
-    if not account_sid or not auth_token:
-        raise ValueError(
-            "Twilio credentials not configured. Add your Twilio Account SID and Auth Token in Settings → Phone."
+async def initiate_outbound_call(
+    agent, user: User, to_number: str, call_id: str, db: AsyncSession
+) -> str:
+    """Use the user's Twilio credentials (User or UserTelephonyConfig) to make the call."""
+    client = await get_twilio_client(user, db)
+    from_number = getattr(user, "twilio_from_number", None) or ""
+    if not from_number:
+        result = await db.execute(
+            select(UserTelephonyConfig).where(UserTelephonyConfig.user_id == user.id)
         )
+        config = result.scalar_one_or_none()
+        if config and config.twilio_phone_number:
+            from_number = config.twilio_phone_number
     if not from_number:
         raise ValueError(
-            "Twilio from number not set. Configure your phone number in Settings → Phone."
+            "Phone number not set. Connect your phone in Settings → Integrations."
         )
-    client = Client(account_sid, auth_token)
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>

@@ -195,7 +195,7 @@ function IntegrationsTab() {
               Phone & Numbers
             </h3>
             <p className="text-sm text-white/70 mt-0.5">
-              Connect your phone account. Resona sets up routing. Add more numbers below and assign an agent to each.
+              Connect once here with Twilio credentials and your number. Then use Phone Numbers to import more numbers and assign agents; use Calls to make outbound calls.
             </p>
           </div>
           <div className="flex items-center gap-2">

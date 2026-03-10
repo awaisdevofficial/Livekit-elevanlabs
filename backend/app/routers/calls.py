@@ -343,7 +343,7 @@ async def create_outbound_call(
 
     try:
         twilio_sid = await initiate_outbound_call(
-            agent, user, body.to_number, str(call.id)
+            agent, user, body.to_number, str(call.id), db
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -363,11 +363,13 @@ async def end_call(
     call = await db.get(Call, call_id)
     if not call or call.user_id != user.id:
         raise HTTPException(status_code=404, detail="Call not found")
-    if call.twilio_sid and user.twilio_account_sid and user.twilio_auth_token:
-        from twilio.rest import Client
-
-        client = Client(user.twilio_account_sid, user.twilio_auth_token)
-        client.calls(call.twilio_sid).update(status="completed")
+    if call.twilio_sid:
+        try:
+            from app.services.twilio_client import get_twilio_client
+            client = await get_twilio_client(user, db)
+            client.calls(call.twilio_sid).update(status="completed")
+        except ValueError:
+            pass
     return {"status": "ok"}
 
 

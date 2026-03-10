@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
-from twilio.rest import Client as TwilioClient
 
 from app.config import settings
 from app.database import get_db
@@ -15,6 +14,7 @@ from app.middleware.auth import get_current_user
 from app.models.phone_number import PhoneNumber
 from app.models.user import User
 from app.schemas.phone_number import PhoneNumberAssign, PhoneNumberResponse
+from app.services.twilio_client import get_twilio_client
 
 
 router = APIRouter()
@@ -29,16 +29,6 @@ def _get_origination_uri() -> Optional[str]:
     if settings.LIVEKIT_API_KEY and settings.PUBLIC_HOST:
         return f"sip:{settings.LIVEKIT_API_KEY}@{settings.PUBLIC_HOST}:5060"
     return None
-
-
-def get_user_twilio(user: User) -> TwilioClient:
-    """Get Twilio client using the USER's own credentials."""
-    if not user.twilio_account_sid or not user.twilio_auth_token:
-        raise HTTPException(
-            status_code=400,
-            detail="Twilio credentials not configured. Go to Settings to add your Twilio credentials.",
-        )
-    return TwilioClient(user.twilio_account_sid, user.twilio_auth_token)
 
 
 @router.get("", response_model=List[PhoneNumberResponse])
@@ -74,8 +64,12 @@ async def search_numbers(
     area_code: Optional[str] = Query(None),
     number_type: str = Query("local"),
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    client = get_user_twilio(user)
+    try:
+        client = await get_twilio_client(user, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     kwargs: dict = {"limit": 20}
     if area_code:
         kwargs["area_code"] = area_code
@@ -103,8 +97,11 @@ async def purchase_number(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Buy a number using user's own Twilio credentials."""
-    client = get_user_twilio(user)
+    """Buy a number using user's own Twilio credentials (Settings → Connect)."""
+    try:
+        client = await get_twilio_client(user, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     incoming = client.incoming_phone_numbers.create(
         phone_number=body["number"],
@@ -143,7 +140,7 @@ async def assign_agent(
     # Update webhook on Twilio side too
     if record.twilio_sid:
         try:
-            client = get_user_twilio(user)
+            client = await get_twilio_client(user, db)
             client.incoming_phone_numbers(record.twilio_sid).update(
                 voice_url=f"{settings.API_BASE_URL}/twilio/inbound",
                 voice_method="POST",
@@ -167,9 +164,12 @@ async def import_numbers_from_twilio(
 ):
     """
     Import all phone numbers from the user's Twilio account.
-    This syncs their Twilio numbers into Resona.
+    Uses credentials from Settings → Integrations (Connect).
     """
-    client = get_user_twilio(user)
+    try:
+        client = await get_twilio_client(user, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Fetch all numbers from user's Twilio account
     twilio_numbers = client.incoming_phone_numbers.list()
