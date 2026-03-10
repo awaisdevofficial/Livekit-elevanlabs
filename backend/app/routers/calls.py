@@ -19,6 +19,7 @@ from app.prompts import get_full_system_prompt
 from app.middleware.auth import get_current_user, verify_internal_secret
 from app.models.agent import Agent
 from app.models.call import Call
+from app.models.phone_number import PhoneNumber
 from app.models.knowledge_base import KnowledgeBase
 from app.models.phone_number import PhoneNumber
 from app.models.user import User
@@ -192,6 +193,19 @@ async def make_outbound_call(
     if not agent or agent.user_id != user.id:
         raise HTTPException(status_code=404, detail="Agent not found")
     await db.refresh(agent)
+
+    # Prefer from_number from agent's assigned number (use_for outbound or both)
+    num_result = await db.execute(
+        select(PhoneNumber).where(
+            PhoneNumber.agent_id == agent.id,
+            PhoneNumber.user_id == user.id,
+            PhoneNumber.is_active.is_(True),
+            PhoneNumber.use_for.in_(("outbound", "both")),
+        )
+    )
+    agent_number = num_result.scalar_one_or_none()
+    if agent_number:
+        from_number = agent_number.number
 
     # Fetch KB
     kb_result = await db.execute(

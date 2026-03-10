@@ -53,6 +53,7 @@ async def handle_inbound(request: Request, db: AsyncSession = Depends(get_db)):
         select(PhoneNumber).where(
             PhoneNumber.number == to_number,
             PhoneNumber.is_active.is_(True),
+            PhoneNumber.use_for.in_(("inbound", "both")),
         )
     )
     phone_record = result.scalar_one_or_none()

@@ -54,7 +54,7 @@ export default function CallsPage() {
     queryFn: () => api.get("/v1/agents"),
   });
 
-  const { data: phoneNumbers, isLoading: phoneNumbersLoading } = useQuery({
+  const { data: phoneNumbers } = useQuery({
     queryKey: ["phone-numbers"],
     queryFn: () => api.get("/v1/phone-numbers"),
   });
@@ -62,20 +62,6 @@ export default function CallsPage() {
   const { data: telephonyStatus } = useQuery({
     queryKey: ["telephony-status"],
     queryFn: () => api.get("/v1/telephony/status"),
-  });
-
-  const importNumbers = useMutation({
-    mutationFn: () => api.post("/v1/phone-numbers/import", {}),
-    onSuccess: (data: any) => {
-      toast.success(
-        `Imported ${data.imported} number${data.imported !== 1 ? "s" : ""}. You can start a call now.`
-      );
-      qc.invalidateQueries({ queryKey: ["phone-numbers"] });
-    },
-    onError: () =>
-      toast.error(
-        "Failed to import. Add your phone credentials in Settings first."
-      ),
   });
 
   const outboundCall = useMutation({
@@ -140,15 +126,19 @@ export default function CallsPage() {
         }
       />
 
-      {!phoneNumbersLoading && !telephonyStatus?.is_connected && !(phoneNumbers as any[])?.length && (
+      {!telephonyStatus?.is_connected && !(phoneNumbers as any[])?.length && (
         <div className="glass-panel-sm p-4 mb-6 border-l-2 border-l-amber-500/50 text-sm text-amber-400">
           <p className="font-medium mb-1">Connect your phone number</p>
           <p className="text-white/60">
-            To make and receive calls, connect your phone account and number in{" "}
+            To make and receive calls, connect in{" "}
             <Link href="/settings" className="underline font-medium text-[#4DFFCE] hover:no-underline">
               Settings
             </Link>
-            . Resona will set up routing automatically.
+            , then import numbers in{" "}
+            <Link href="/phone-numbers" className="underline font-medium text-[#4DFFCE] hover:no-underline">
+              Phone Numbers
+            </Link>
+            .
           </p>
         </div>
       )}
@@ -397,9 +387,9 @@ export default function CallsPage() {
                       </p>
                     ) : (
                       <p className="text-sm text-white/60">
-                        Your connected number from Settings will be used. To assign this agent to a specific number, go to{" "}
-                        <Link href="/settings" className="underline font-medium text-[#4DFFCE]">
-                          Settings → Integrations
+                        Your connected number from Settings will be used. To assign this agent to a number, edit the agent or go to{" "}
+                        <Link href="/phone-numbers" className="underline font-medium text-[#4DFFCE]">
+                          Phone Numbers
                         </Link>
                         .
                       </p>

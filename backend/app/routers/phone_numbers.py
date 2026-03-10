@@ -153,6 +153,8 @@ async def assign_agent(
             pass
 
     record.agent_id = body.agent_id
+    if body.use_for is not None:
+        record.use_for = body.use_for if body.use_for in ("inbound", "outbound", "both") else "both"
     await db.commit()
     await db.refresh(record)
     return record

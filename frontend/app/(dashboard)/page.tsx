@@ -55,21 +55,14 @@ export default function DashboardPage() {
         title="Dashboard"
         subtitle="Overview of your voice AI activity"
         actions={
-          <>
-            <Link href="/agents/new">
-              <Button variant="primary" size="md" className="cursor-pointer">
-                New Agent
-              </Button>
-            </Link>
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={() => setCallModalOpen(true)}
-            >
-              <Phone size={16} />
-              Make a Call
-            </Button>
-          </>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => setCallModalOpen(true)}
+          >
+            <Phone size={16} />
+            Make a Call
+          </Button>
         }
       />
 

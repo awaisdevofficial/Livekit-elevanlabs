@@ -18,12 +18,14 @@ class PhoneNumberImport(BaseModel):
 
 class PhoneNumberAssign(BaseModel):
     agent_id: Optional[UUID] = None  # None = unassign
+    use_for: Optional[str] = "both"  # inbound | outbound | both
 
 
 class PhoneNumberResponse(BaseModel):
     id: UUID
     user_id: UUID
     agent_id: Optional[UUID]
+    use_for: Optional[str] = "both"
     number: str
     friendly_name: Optional[str]
     origination_uri: Optional[str] = None

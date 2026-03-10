@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useMemo } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Controller, useForm } from "react-hook-form"
@@ -79,11 +80,18 @@ export default function AgentEditPage({
   const [activeTab, setActiveTab] = useState<"config" | "knowledge">("config")
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [voiceLibraryOpen, setVoiceLibraryOpen] = useState(false)
+  const [assignedPhoneNumberId, setAssignedPhoneNumberId] = useState<string | "">("")
+  const [assignedUseFor, setAssignedUseFor] = useState<"inbound" | "outbound" | "both">("both")
 
   const { data: agent, isLoading } = useQuery({
     queryKey: ["agent", params.id],
     queryFn: () => api.get(`/v1/agents/${params.id}`) as Promise<any>,
     staleTime: 30_000, // 30s — avoid refetch on tab focus for faster feel
+  })
+
+  const { data: phoneNumbers = [] } = useQuery<{ id: string; number: string; agent_id?: string; use_for?: string }[]>({
+    queryKey: ["phone-numbers"],
+    queryFn: () => api.get("/v1/phone-numbers"),
   })
 
   const form = useForm<AgentFormValues>({
@@ -120,6 +128,19 @@ export default function AgentEditPage({
     }
   }, [agent, form])
 
+  useEffect(() => {
+    if (!agent?.id || !phoneNumbers.length) return
+    const assigned = phoneNumbers.find((n) => String(n.agent_id ?? "") === String(agent.id))
+    if (assigned) {
+      setAssignedPhoneNumberId(assigned.id)
+      const u = assigned.use_for === "inbound" || assigned.use_for === "outbound" ? assigned.use_for : "both"
+      setAssignedUseFor(u)
+    } else {
+      setAssignedPhoneNumberId("")
+      setAssignedUseFor("both")
+    }
+  }, [agent?.id, phoneNumbers])
+
   const watchedName = form.watch("name")
   const watchedFirstMessage = form.watch("first_message")
   const watchedSystemPrompt = form.watch("system_prompt")
@@ -144,8 +165,13 @@ export default function AgentEditPage({
   }, [voices, voiceId])
 
   const { mutate: save, isPending: saving } = useMutation({
-    mutationFn: (values: AgentFormValues) =>
-      api.patch(`/v1/agents/${params.id}`, {
+    mutationFn: async (payload: {
+      values: AgentFormValues
+      phoneNumberId: string | null
+      useFor: string
+    }) => {
+      const { values, phoneNumberId, useFor } = payload
+      const updatedAgent = await api.patch(`/v1/agents/${params.id}`, {
         ...FIXED_DEFAULTS,
         ...values,
         tts_provider: values.tts_provider || FIXED_DEFAULTS.tts_provider,
@@ -154,7 +180,21 @@ export default function AgentEditPage({
           agent_speaks_first: values.agent_speaks_first,
           transfer_number: values.transfer_number || undefined,
         },
-      }),
+      }) as any
+      const numbers = (await api.get("/v1/phone-numbers")) as { id: string; agent_id?: string }[]
+      for (const n of numbers) {
+        if (String(n.agent_id ?? "") === String(params.id) && n.id !== phoneNumberId) {
+          await api.patch(`/v1/phone-numbers/${n.id}`, { agent_id: null, use_for: "both" })
+        }
+      }
+      if (phoneNumberId) {
+        await api.patch(`/v1/phone-numbers/${phoneNumberId}`, {
+          agent_id: params.id,
+          use_for: useFor || "both",
+        })
+      }
+      return updatedAgent
+    },
     onSuccess: (updatedAgent: any) => {
       toast.success("Agent saved")
       form.reset({
@@ -172,6 +212,7 @@ export default function AgentEditPage({
       })
       queryClient.invalidateQueries({ queryKey: ["agents"] })
       queryClient.invalidateQueries({ queryKey: ["agent", params.id] })
+      queryClient.invalidateQueries({ queryKey: ["phone-numbers"] })
     },
     onError: () => toast.error("Failed to save agent"),
   })
@@ -285,7 +326,13 @@ export default function AgentEditPage({
               </button>
               <button
                 type="button"
-                onClick={form.handleSubmit((v) => save(v))}
+                onClick={form.handleSubmit((v) =>
+                  save({
+                    values: v,
+                    phoneNumberId: assignedPhoneNumberId || null,
+                    useFor: assignedUseFor,
+                  })
+                )}
                 disabled={saving}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4DFFCE] text-[#07080A] text-sm font-semibold hover:bg-[#5affd6] transition-colors disabled:opacity-60 disabled:pointer-events-none"
               >
@@ -567,6 +614,65 @@ export default function AgentEditPage({
                   </div>
                 </div>
               </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/10 bg-white/[0.03]">
+                <h2 className="text-sm font-semibold text-white tracking-tight flex items-center gap-2">
+                  <Phone size={16} />
+                  Phone number
+                </h2>
+                <p className="text-xs text-white/60 mt-0.5">
+                  Assign a number to this agent for inbound calls, outbound calls, or both.
+                </p>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                  <label className="form-label">Number for this agent</label>
+                  <select
+                    value={assignedPhoneNumberId}
+                    onChange={(e) => setAssignedPhoneNumberId(e.target.value)}
+                    className="form-input max-w-md"
+                  >
+                    <option value="">None</option>
+                    {phoneNumbers.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.number}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-white/60">
+                    Import numbers in{" "}
+                    <Link href="/phone-numbers" className="text-[#4DFFCE] hover:underline">Phone Numbers</Link>
+                    . This agent will handle calls for the selected number.
+                  </p>
+                </div>
+                {assignedPhoneNumberId && (
+                  <div className="space-y-2">
+                    <label className="form-label">Use for</label>
+                    <div className="flex flex-wrap gap-2">
+                      {(["both", "inbound", "outbound"] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setAssignedUseFor(opt)}
+                          className={cn(
+                            "px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+                            assignedUseFor === opt
+                              ? "bg-[#4DFFCE] text-[#07080A] border-[#4DFFCE]"
+                              : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:text-white"
+                          )}
+                        >
+                          {opt === "both" ? "Inbound & outbound" : opt === "inbound" ? "Inbound only" : "Outbound only"}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-white/60">
+                      Inbound: calls to this number go to this agent. Outbound: when making a call with this agent, this number is used as caller ID.
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
