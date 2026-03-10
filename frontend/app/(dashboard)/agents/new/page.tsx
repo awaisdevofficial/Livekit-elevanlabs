@@ -84,8 +84,8 @@ export default function NewAgentPage() {
       system_prompt:
         "You are a helpful, friendly voice AI agent that assists callers with their questions.",
       first_message: "Hi, this is your AI assistant. How can I help you today?",
-      tts_voice_id: "en_US-amy-medium",
-      tts_provider: "elevenlabs",
+      tts_voice_id: "a0e99841-438c-4a64-b679-ae501e7d6091",
+      tts_provider: "cartesia",
       stt_language: "en-US",
       silence_timeout: 30,
       max_duration: 3600,
@@ -102,28 +102,11 @@ export default function NewAgentPage() {
   const watchedSilenceTimeout = form.watch("silence_timeout")
   const watchedMaxDuration = form.watch("max_duration")
 
-  const { data: ttsSettings } = useQuery({
-    queryKey: ["settings", "tts"],
-    queryFn: () => api.get("/v1/settings/tts") as Promise<{ default_provider: string }>,
-  })
   const { data: voices = [] } = useQuery({
     queryKey: ["voices"],
     queryFn: () => api.get("/v1/voices") as Promise<Voice[]>,
     enabled: voiceLibraryOpen || !!watchedVoice,
   })
-
-  // Default to Piper when backend is using self-hosted (Whisper.cpp + Piper); only set once so user can change
-  const defaultPiperSet = useRef(false)
-  useEffect(() => {
-    if (
-      ttsSettings?.default_provider === "whisper_kokoro" &&
-      !defaultPiperSet.current
-    ) {
-      defaultPiperSet.current = true
-      form.setValue("tts_provider", "kokoro")
-      form.setValue("tts_voice_id", "alloy")
-    }
-  }, [ttsSettings?.default_provider, form])
 
   const { mutate: create, isPending: creating } = useMutation({
     mutationFn: (values: AgentFormValues) =>
@@ -164,7 +147,7 @@ export default function NewAgentPage() {
         },
         body: JSON.stringify({
           voice_id: form.getValues("tts_voice_id"),
-          provider: form.getValues("tts_provider") ?? "elevenlabs",
+          provider: form.getValues("tts_provider") ?? "cartesia",
           text:
             "Hi, I am your AI voice assistant, ready to help you on every call.",
         }),
@@ -591,7 +574,7 @@ export default function NewAgentPage() {
         selectedProvider={watchedProvider ?? "elevenlabs"}
         onSelect={(voice: Voice) => {
           form.setValue("tts_voice_id", voice.id)
-          form.setValue("tts_provider", voice.provider ?? "elevenlabs")
+          form.setValue("tts_provider", voice.provider ?? "cartesia")
         }}
       />
     </div>

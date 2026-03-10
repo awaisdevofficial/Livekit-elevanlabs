@@ -102,7 +102,7 @@ export default function AgentEditPage({
       system_prompt: "",
       first_message: "",
       tts_voice_id: "",
-      tts_provider: "elevenlabs",
+      tts_provider: "cartesia",
       stt_language: "en-US",
       silence_timeout: 30,
       max_duration: 3600,
@@ -119,7 +119,7 @@ export default function AgentEditPage({
         system_prompt: agent.system_prompt || "",
         first_message: agent.first_message || "",
         tts_voice_id: agent.tts_voice_id || "",
-        tts_provider: agent.tts_provider ?? "elevenlabs",
+        tts_provider: agent.tts_provider ?? "cartesia",
         stt_language: agent.stt_language || "en-US",
         silence_timeout: agent.silence_timeout || 30,
         max_duration: agent.max_duration || 3600,
@@ -204,7 +204,7 @@ export default function AgentEditPage({
         system_prompt: updatedAgent.system_prompt || "",
         first_message: updatedAgent.first_message || "",
         tts_voice_id: updatedAgent.tts_voice_id || "",
-        tts_provider: updatedAgent.tts_provider ?? "elevenlabs",
+        tts_provider: updatedAgent.tts_provider ?? "cartesia",
         silence_timeout: updatedAgent.silence_timeout || 30,
         max_duration: updatedAgent.max_duration || 3600,
         agent_speaks_first:
@@ -234,7 +234,7 @@ export default function AgentEditPage({
         },
         body: JSON.stringify({
           voice_id: form.getValues("tts_voice_id") || agent.tts_voice_id,
-          provider: form.getValues("tts_provider") ?? agent?.tts_provider ?? "elevenlabs",
+          provider: form.getValues("tts_provider") ?? agent?.tts_provider ?? "cartesia",
           text:
             "Hi, I am your AI voice assistant, ready to help you on every call.",
         }),
@@ -819,10 +819,10 @@ export default function AgentEditPage({
         open={voiceLibraryOpen}
         onClose={() => setVoiceLibraryOpen(false)}
         selectedVoiceId={watchedVoice || agent.tts_voice_id}
-        selectedProvider={watchedProvider ?? agent?.tts_provider ?? "elevenlabs"}
+        selectedProvider={watchedProvider ?? agent?.tts_provider ?? "cartesia"}
         onSelect={(voice: Voice) => {
           form.setValue("tts_voice_id", voice.id)
-          form.setValue("tts_provider", voice.provider ?? "elevenlabs")
+          form.setValue("tts_provider", voice.provider ?? "cartesia")
         }}
       />
     </>

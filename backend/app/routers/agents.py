@@ -198,6 +198,7 @@ async def _create_web_call_token_impl(
     room_name = f"webcall-{uuid.uuid4()}"
     call_id = uuid.uuid4()
 
+    # Use saved agent voice for test call (Cartesia UUID); fallback to default if empty
     voice_id = (
         (agent.tts_voice_id or "").strip()
         or (getattr(settings, "CARTESIA_DEFAULT_VOICE_ID", None) or "").strip()

@@ -40,6 +40,21 @@ def get_elevenlabs_keys_ordered() -> list[str]:
     return out
 
 
+def get_cartesia_api_key() -> str:
+    """Default: first row's Cartesia key."""
+    return get_api_key("CARTESIA_API_KEY")
+
+
+def get_cartesia_keys_ordered() -> list[str]:
+    """All Cartesia keys in table order; use next on failure."""
+    out: list[str] = []
+    for row in _api_keys_rows:
+        v = (row.get("CARTESIA_API_KEY") or "").strip()
+        if v:
+            out.append(v)
+    return out
+
+
 def get_openai_keys_ordered() -> list[str]:
     """All OpenAI keys in table order; use next on failure."""
     out: list[str] = []

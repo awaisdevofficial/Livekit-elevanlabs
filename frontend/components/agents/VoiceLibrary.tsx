@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button"
 import { API_BASE_URL, getAuthToken } from "@/lib/api"
 import { cn } from "@/components/lib-utils"
 
-export type VoiceProvider = "piper" | "kokoro"
+export type VoiceProvider = "cartesia" | "elevenlabs"
 
 export interface Voice {
   id: string
@@ -66,9 +66,8 @@ const LANG_FLAGS: Record<string, string> = {
 }
 
 const providerLabel: Record<string, string> = {
-  piper: "Voice",
-  kokoro: "Voice",
-  elevenlabs: "Voice",
+  cartesia: "Cartesia",
+  elevenlabs: "ElevenLabs",
 }
 
 type TabFilter = "all" | "english" | "other"
@@ -163,7 +162,7 @@ export function VoiceLibrary({
         },
         body: JSON.stringify({
           voice_id: voice.id,
-          provider: (voice.provider || "elevenlabs").toLowerCase(),
+          provider: (voice.provider || "cartesia").toLowerCase(),
           text: "Hi, I am your AI voice assistant, ready to help you on every call.",
         }),
       })
@@ -198,8 +197,10 @@ export function VoiceLibrary({
   }, [voices])
 
   const filteredVoices = useMemo(() => {
-    // Include ElevenLabs, Piper, and Kokoro (no filter by provider)
+    const allowedProviders = new Set(["cartesia", "elevenlabs"])
     return voices.filter((v) => {
+      const provider = (v.provider || "").toLowerCase()
+      if (!allowedProviders.has(provider)) return false
       const lc = (v.language_code || "").toLowerCase().trim()
       if (tab === "english" && lc && !lc.startsWith("en")) return false
       if (tab === "other" && lc && lc.startsWith("en")) return false
@@ -218,9 +219,9 @@ export function VoiceLibrary({
   const selectedLabel = useMemo(() => {
     const sid = (selectedVoiceId || "").trim()
     if (!sid) return null
-    const sp = (selectedProvider || "piper").toLowerCase()
+    const sp = (selectedProvider || "cartesia").toLowerCase()
     const match = voices.find(
-      (v) => (v.id || "").trim() === sid && (v.provider || "piper").toLowerCase() === sp
+      (v) => (v.id || "").trim() === sid && (v.provider || "cartesia").toLowerCase() === sp
     )
     return match ? `${match.name} · ${getProviderLabel(match.provider)}` : null
   }, [voices, selectedVoiceId, selectedProvider])
@@ -465,8 +466,8 @@ export function VoiceLibrary({
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredVoices.map((voice) => {
                       const sid = (selectedVoiceId || "").trim()
-                      const sp = (selectedProvider || voice.provider || "piper").toLowerCase()
-                      const vp = (voice.provider || "piper").toLowerCase()
+                      const sp = (selectedProvider || voice.provider || "cartesia").toLowerCase()
+                      const vp = (voice.provider || "cartesia").toLowerCase()
                       const isSelected =
                         sid === (voice.id || "").trim() && sp === vp
                       const genderIcon =

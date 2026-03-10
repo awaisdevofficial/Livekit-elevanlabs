@@ -99,7 +99,13 @@ async def entrypoint(ctx: JobContext):
         logger.error("CARTESIA_API_KEY missing. Set it in api-keys table (Supabase).")
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
-    participant = await ctx.wait_for_participant()
+    try:
+        participant = await ctx.wait_for_participant()
+    except RuntimeError as e:
+        if "room disconnected" in str(e).lower() or "waiting for participant" in str(e).lower():
+            logger.info("Room %s ended before participant joined (user may have left): %s", ctx.room.name, e)
+            return
+        raise
     logger.info("Participant joined room=%s identity=%s", ctx.room.name, participant.identity)
 
     agent_config: dict = {}

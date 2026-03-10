@@ -9,7 +9,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.config import settings
-from app.system_settings import get_elevenlabs_keys_ordered
+from app.constants import DEFAULT_CARTESIA_VOICE_ID
+from app.system_settings import get_cartesia_keys_ordered, get_elevenlabs_keys_ordered
 
 logger = logging.getLogger(__name__)
 from app.middleware.auth import get_current_user
@@ -19,10 +20,14 @@ from app.models.user import User
 router = APIRouter()
 
 ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
+CARTESIA_API_BASE = "https://api.cartesia.ai"
+CARTESIA_API_VERSION = "2024-06-10"
 
-# In-memory cache for voices list to avoid hitting ElevenLabs on every request (faster page loads)
+# In-memory cache for voices list to avoid hitting providers on every request
 _voices_cache: list | None = None
 _voices_cache_at: float = 0
+_cartesia_voices_cache: list | None = None
+_cartesia_voices_cache_at: float = 0
 VOICES_CACHE_TTL_SEC = 90
 VOICES_HTTP_TIMEOUT = 8
 
@@ -63,6 +68,84 @@ def _enrich_elevenlabs_voice(raw: dict) -> dict:
         "quality": None,
         "is_custom": is_custom,
     }
+
+
+def _cartesia_headers(api_key: str) -> dict:
+    if not api_key:
+        return {}
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Cartesia-Version": CARTESIA_API_VERSION,
+        "Content-Type": "application/json",
+    }
+
+
+def _enrich_cartesia_voice(raw: dict) -> dict:
+    """Map Cartesia voice object to our Voice schema. Cartesia uses UUID id."""
+    voice_id = (raw.get("id") or "").strip()
+    name = (raw.get("name") or raw.get("description") or "Unknown").strip() or "Unknown"
+    gender_raw = (raw.get("gender") or raw.get("gender_presentation") or "neutral").lower()
+    if "feminine" in gender_raw or gender_raw == "female":
+        gender = "female"
+    elif "masculine" in gender_raw or gender_raw == "male":
+        gender = "male"
+    else:
+        gender = "neutral"
+    description = raw.get("description") or name
+    return {
+        "id": voice_id,
+        "name": name,
+        "provider": "cartesia",
+        "gender": gender,
+        "description": description,
+        "preview_url": raw.get("preview_url"),
+        "language": "English",
+        "language_code": "en",
+        "quality": None,
+        "is_custom": False,
+    }
+
+
+async def _fetch_cartesia_voices() -> list[Voice]:
+    """Fetch voices from Cartesia API. Uses short-lived cache."""
+    global _cartesia_voices_cache, _cartesia_voices_cache_at
+    now = time.monotonic()
+    if _cartesia_voices_cache is not None and (now - _cartesia_voices_cache_at) < VOICES_CACHE_TTL_SEC:
+        return _cartesia_voices_cache
+    keys = get_cartesia_keys_ordered()
+    if not keys:
+        logger.debug("No CARTESIA_API_KEY in api-keys table")
+        return []
+    last_err: Exception | None = None
+    for api_key in keys:
+        try:
+            async with httpx.AsyncClient(timeout=VOICES_HTTP_TIMEOUT) as client:
+                resp = await client.get(
+                    f"{CARTESIA_API_BASE}/voices",
+                    headers=_cartesia_headers(api_key),
+                    params={"limit": 100},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # Cartesia returns {"voices": [...]} or similar; handle both list and paginated
+                    if isinstance(data, list):
+                        voices_list = data
+                    else:
+                        voices_list = data.get("voices", data.get("data", [])) or []
+                    result = [
+                        Voice(**_enrich_cartesia_voice(v if isinstance(v, dict) else {"id": str(v), "name": str(v)}))
+                        for v in voices_list
+                    ]
+                    _cartesia_voices_cache = result
+                    _cartesia_voices_cache_at = time.monotonic()
+                    return result
+                last_err = RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+        except Exception as e:
+            last_err = e
+            logger.debug("Cartesia /voices failed with key, trying next row: %s", e)
+    if last_err:
+        logger.warning("Cartesia voices fetch failed for all keys: %s", last_err)
+    return []
 
 
 class Voice(BaseModel):
@@ -124,21 +207,24 @@ async def _fetch_elevenlabs_voices() -> list[Voice]:
 
 @router.get("", response_model=List[Voice])
 async def list_voices(user: User = Depends(get_current_user)):  # noqa: ARG001
-    """Return ElevenLabs voices."""
+    """Return voices from Cartesia and ElevenLabs (Cartesia first for default stack)."""
+    all_voices: list[Voice] = []
     try:
-        voices = await _fetch_elevenlabs_voices()
+        cartesia = await _fetch_cartesia_voices()
+        all_voices.extend(cartesia)
     except Exception as e:
-        logger.exception("Failed to fetch ElevenLabs voices: %s", e)
+        logger.warning("Cartesia voices fetch failed: %s", e)
+    try:
+        elevenlabs = await _fetch_elevenlabs_voices()
+        all_voices.extend(elevenlabs)
+    except Exception as e:
+        logger.warning("ElevenLabs voices fetch failed: %s", e)
+    if not all_voices:
         raise HTTPException(
             status_code=503,
-            detail="ElevenLabs voices unavailable. Add keys in api-keys table.",
-        ) from e
-    if not voices:
-        raise HTTPException(
-            status_code=503,
-            detail="ElevenLabs voices unavailable. Add keys in api-keys table.",
+            detail="No voices available. Add Cartesia or ElevenLabs API key in Settings → API Keys.",
         )
-    return voices
+    return all_voices
 
 
 @router.post("/add")
@@ -216,43 +302,80 @@ async def add_voice_clone(
 
 @router.post("/preview")
 async def preview_voice(body: VoicePreviewRequest, user: User = Depends(get_current_user)):  # noqa: ARG001
-    """Generate a short audio preview using ElevenLabs TTS."""
-    provider = (body.provider or "").lower() or "elevenlabs"
-    if provider != "elevenlabs":
-        raise HTTPException(
-            status_code=400,
-            detail="Only 'elevenlabs' provider is supported.",
-        )
-    keys = get_elevenlabs_keys_ordered()
-    if not keys:
-        raise HTTPException(status_code=503, detail="ElevenLabs not configured (add keys in api-keys table)")
+    """Generate a short audio preview using Cartesia or ElevenLabs TTS."""
+    provider = (body.provider or "").lower() or "cartesia"
     text = body.text.strip() or "Hi, I am your AI voice assistant, ready to help you on every call."
-    voice_id = (body.voice_id or "").strip() or (settings.ELEVENLABS_DEFAULT_VOICE_ID or "bIHbv24MWmeRgasZH58o").strip()
-    model_id = (settings.ELEVENLABS_TTS_MODEL or "eleven_turbo_v2_5").strip()
-    url = f"{ELEVENLABS_API_BASE}/text-to-speech/{voice_id}"
-    last_err: Exception | None = None
-    for api_key in keys:
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    url,
-                    headers=_elevenlabs_headers(api_key),
-                    json={"text": text, "model_id": model_id},
+
+    if provider == "cartesia":
+        keys = get_cartesia_keys_ordered()
+        if not keys:
+            raise HTTPException(status_code=503, detail="Cartesia not configured (add CARTESIA_API_KEY in API Keys)")
+        voice_id = (body.voice_id or "").strip() or (getattr(settings, "CARTESIA_DEFAULT_VOICE_ID", None) or DEFAULT_CARTESIA_VOICE_ID or "").strip()
+        if not voice_id or "-" not in voice_id:
+            voice_id = DEFAULT_CARTESIA_VOICE_ID
+        last_err: Exception | None = None
+        for api_key in keys:
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.post(
+                        f"{CARTESIA_API_BASE}/tts/bytes",
+                        headers=_cartesia_headers(api_key),
+                        json={
+                            "model_id": "sonic-2",
+                            "transcript": text,
+                            "voice": {"mode": "id", "id": voice_id},
+                            "output_format": {"container": "wav", "encoding": "pcm_s16le", "sample_rate": 44100},
+                        },
+                    )
+                if resp.status_code == 200:
+                    return StreamingResponse(iter([resp.content]), media_type="audio/wav")
+                if resp.status_code == 404:
+                    raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found.")
+                last_err = HTTPException(
+                    status_code=min(resp.status_code, 502),
+                    detail=resp.text[:200] if resp.text else "Cartesia TTS failed",
                 )
-            if resp.status_code == 200:
-                content_type = resp.headers.get("content-type", "audio/mpeg").split(";")[0].strip() or "audio/mpeg"
-                return StreamingResponse(iter([resp.content]), media_type=content_type)
-            if resp.status_code == 404:
-                raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found.")
-            last_err = HTTPException(
-                status_code=502,
-                detail=f"ElevenLabs TTS failed (HTTP {resp.status_code}): {resp.text[:200] if resp.text else 'no body'}",
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            last_err = e
-            logger.debug("ElevenLabs TTS failed with key, trying next row: %s", e)
-    if last_err:
-        raise HTTPException(status_code=502, detail=f"ElevenLabs TTS error: {last_err!s}")
-    raise HTTPException(status_code=502, detail="ElevenLabs TTS failed for all keys")
+            except HTTPException:
+                raise
+            except Exception as e:
+                last_err = e
+                logger.debug("Cartesia TTS failed with key: %s", e)
+        if last_err:
+            raise HTTPException(status_code=502, detail=f"Cartesia TTS error: {last_err!s}")
+        raise HTTPException(status_code=502, detail="Cartesia TTS failed for all keys")
+
+    if provider == "elevenlabs":
+        keys = get_elevenlabs_keys_ordered()
+        if not keys:
+            raise HTTPException(status_code=503, detail="ElevenLabs not configured (add keys in api-keys table)")
+        voice_id = (body.voice_id or "").strip() or (settings.ELEVENLABS_DEFAULT_VOICE_ID or "bIHbv24MWmeRgasZH58o").strip()
+        model_id = (settings.ELEVENLABS_TTS_MODEL or "eleven_turbo_v2_5").strip()
+        url = f"{ELEVENLABS_API_BASE}/text-to-speech/{voice_id}"
+        last_err = None
+        for api_key in keys:
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.post(
+                        url,
+                        headers=_elevenlabs_headers(api_key),
+                        json={"text": text, "model_id": model_id},
+                    )
+                if resp.status_code == 200:
+                    content_type = resp.headers.get("content-type", "audio/mpeg").split(";")[0].strip() or "audio/mpeg"
+                    return StreamingResponse(iter([resp.content]), media_type=content_type)
+                if resp.status_code == 404:
+                    raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found.")
+                last_err = HTTPException(
+                    status_code=502,
+                    detail=f"ElevenLabs TTS failed (HTTP {resp.status_code}): {resp.text[:200] if resp.text else 'no body'}",
+                )
+            except HTTPException:
+                raise
+            except Exception as e:
+                last_err = e
+                logger.debug("ElevenLabs TTS failed with key, trying next row: %s", e)
+        if last_err:
+            raise HTTPException(status_code=502, detail=f"ElevenLabs TTS error: {last_err!s}")
+        raise HTTPException(status_code=502, detail="ElevenLabs TTS failed for all keys")
+
+    raise HTTPException(status_code=400, detail="Provider must be 'cartesia' or 'elevenlabs'.")
