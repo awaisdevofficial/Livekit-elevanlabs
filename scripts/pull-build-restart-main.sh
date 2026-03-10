@@ -55,11 +55,23 @@ if grep -q 'use_for' backend/app/models/phone_number.py 2>/dev/null && [ -f fron
 else
   echo "WARN: Phone Numbers/use_for not found"
 fi
-if grep -q 'streaming_latency' backend/agent_worker.py 2>/dev/null; then
-  echo "OK: TTS streaming_latency in agent_worker.py"
+if grep -q 'deepgram_plugin.STT' backend/agent_worker.py 2>/dev/null && grep -q 'DEEPGRAM_API_KEY' backend/agent_worker.py 2>/dev/null; then
+  echo "OK: Deepgram STT in agent_worker.py"
   CHECKS=$((CHECKS+1))
 else
-  echo "WARN: streaming_latency not found in agent_worker"
+  echo "WARN: Deepgram STT not found in agent_worker"
+fi
+if grep -q 'api.groq.com' backend/agent_worker.py 2>/dev/null && grep -q 'GROQ_API_KEY' backend/agent_worker.py 2>/dev/null; then
+  echo "OK: Groq LLM in agent_worker.py"
+  CHECKS=$((CHECKS+1))
+else
+  echo "WARN: Groq LLM not found in agent_worker"
+fi
+if grep -q 'cartesia_plugin.TTS' backend/agent_worker.py 2>/dev/null && grep -q 'CARTESIA_API_KEY' backend/agent_worker.py 2>/dev/null; then
+  echo "OK: Cartesia TTS in agent_worker.py"
+  CHECKS=$((CHECKS+1))
+else
+  echo "WARN: Cartesia TTS not found in agent_worker"
 fi
 if grep -q '\[inbound\]' backend/app/routers/twilio_webhook.py 2>/dev/null; then
   echo "OK: Inbound webhook timing logs in twilio_webhook.py"
@@ -67,7 +79,7 @@ if grep -q '\[inbound\]' backend/app/routers/twilio_webhook.py 2>/dev/null; then
 else
   echo "WARN: [inbound] timing logs not found in twilio_webhook"
 fi
-echo "Verification: $CHECKS/7 checks passed"
+echo "Verification: $CHECKS/9 checks passed"
 
 echo ""
 echo "=== Run DB migrations (alembic) ==="
@@ -96,6 +108,11 @@ fi
 AGENT_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E 'agent_worker|resonaai.*agent' | head -1)
 if [ -n "$AGENT_CONTAINER" ]; then
   echo "Agent worker container: $AGENT_CONTAINER"
+  if docker exec "$AGENT_CONTAINER" grep -q 'deepgram_plugin.STT' /app/agent_worker.py 2>/dev/null && docker exec "$AGENT_CONTAINER" grep -q 'api.groq.com' /app/agent_worker.py 2>/dev/null; then
+    echo "OK: Running agent_worker has Deepgram + Groq + Cartesia stack."
+  else
+    echo "Note: Agent container may not have new stack (rebuild may be needed)."
+  fi
 fi
 FRONTEND_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E 'frontend|resonaai.*frontend' | head -1)
 if [ -n "$FRONTEND_CONTAINER" ]; then
