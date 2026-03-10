@@ -1,8 +1,21 @@
 import { getSupabase } from "./supabaseClient"
 
-const raw = typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL
+function getApiBaseUrl(): string {
+  const raw =
+    typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL
+  if (raw && String(raw).trim()) {
+    return String(raw).replace(/\/+$/, "")
+  }
+  if (typeof window !== "undefined" && window.location?.origin) {
+    const origin = window.location.origin
+    if (origin !== "http://localhost:3000" && origin !== "http://127.0.0.1:3000") {
+      return `${origin}/api`
+    }
+  }
+  return "http://localhost:8000"
+}
 /** Base URL of the backend API (no trailing slash). Set NEXT_PUBLIC_API_URL in .env. */
-export const API_BASE_URL = raw ? String(raw).replace(/\/+$/, "") : "http://localhost:8000"
+export const API_BASE_URL = getApiBaseUrl()
 
 export async function getAuthToken(): Promise<string | null> {
   if (typeof window === "undefined") return null
@@ -14,8 +27,9 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 async function request(method: string, path: string, body?: unknown) {
+  const base = getApiBaseUrl()
   const token = await getAuthToken()
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -26,8 +40,27 @@ async function request(method: string, path: string, body?: unknown) {
   })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error((err as any).detail || `HTTP ${res.status}`)
+    const err = await res.json().catch(() => ({})) as { detail?: string | { msg?: string }[] }
+    const detail = err?.detail
+    let message: string
+    if (typeof detail === "string") {
+      message = detail
+    } else if (Array.isArray(detail) && detail.length > 0) {
+      const first = detail[0]
+      message = typeof first === "object" && first && "msg" in first
+        ? String((first as { msg?: string }).msg ?? res.status)
+        : String(first ?? res.status)
+    } else {
+      message =
+        res.status === 401
+          ? "Please sign in again."
+          : res.status === 403
+            ? "You don't have access."
+            : res.status === 404
+              ? "Not found."
+              : `Request failed (${res.status}).`
+    }
+    throw new Error(message)
   }
 
   if (res.status === 204) return null

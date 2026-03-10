@@ -281,9 +281,13 @@ export function TestCallPanel({
       }
       setCallState("connected")
     } catch (err) {
-      console.error(err)
+      console.error("Test call failed:", err)
+      const msg = err instanceof Error ? err.message : "Failed to connect. Try again."
+      const isAuth = /sign in|401|authenticated|token|expired/i.test(msg)
       setError(
-        err instanceof Error ? err.message : "Failed to connect. Try again."
+        isAuth
+          ? `${msg} Sign out and sign in again, then try Test again.`
+          : msg
       )
       setCallState("idle")
       cleanupRoom()

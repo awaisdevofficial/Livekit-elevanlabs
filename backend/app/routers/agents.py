@@ -157,6 +157,7 @@ async def duplicate_agent(
         silence_timeout=agent.silence_timeout,
         max_duration=agent.max_duration,
         tools_config=agent.tools_config,
+        transfer_number=getattr(agent, "transfer_number", None),
     )
     db.add(new_agent)
     await db.commit()
