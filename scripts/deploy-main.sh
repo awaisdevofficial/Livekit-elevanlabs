@@ -35,17 +35,14 @@ if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]
   echo "Set them in .env or frontend/.env.production in project root, or export before running this script."
 fi
 
-# Frontend Dockerfile expects root .env for COPY; create from exports if missing (e.g. after fresh clone)
-if [ ! -f .env ]; then
-  cat > .env << ENVFILE
-NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
-NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-}
-NEXT_PUBLIC_ORIGINATION_URI=${NEXT_PUBLIC_ORIGINATION_URI:-}
-NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
-NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+# Frontend Dockerfile expects root .env for COPY. Ensure it has all build vars (use placeholders when empty so build succeeds).
+cat > .env << ENVFILE
+NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://resonaai.duckdns.org/api}
+NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-wss://resonaai.duckdns.org/livekit}
+NEXT_PUBLIC_ORIGINATION_URI=${NEXT_PUBLIC_ORIGINATION_URI:-sip:resona_key@18.141.140.150:5060}
+NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-https://placeholder.supabase.co}
+NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-placeholder}
 ENVFILE
-  echo "Created root .env for frontend build."
-fi
 
 docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" --env-file backend/.env.production up -d --build
 echo "=== Done. Check: docker ps ==="
