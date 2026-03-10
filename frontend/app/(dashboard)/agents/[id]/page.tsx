@@ -16,17 +16,18 @@ import { VoiceLibrary, Voice } from "@/components/agents/VoiceLibrary"
 import { DarkSelect } from "@/components/shared/DarkSelect"
 
 const FIXED_DEFAULTS = {
-  llm_model: "gpt-4o",
+  llm_model: "llama-3.3-70b-versatile",
   llm_temperature: 0.8,
-  llm_max_tokens: 300,
-  stt_provider: "elevenlabs",
-  stt_model: "scribe_v2_realtime",
-  stt_language: "en-US",
-  tts_provider: "elevenlabs",
+  llm_max_tokens: 150,
+  stt_provider: "deepgram",
+  stt_model: "nova-2",
+  stt_language: "en",
+  tts_provider: "cartesia",
   tts_stability: 0.45,
 }
 
 const LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
   { value: "en-US", label: "English (US)" },
   { value: "en-GB", label: "English (UK)" },
   { value: "es-ES", label: "Spanish (Spain)" },

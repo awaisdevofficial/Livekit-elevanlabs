@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.system_settings import get_openai_keys_ordered
-from app.constants import DEFAULT_ELEVENLABS_VOICE_ID
+from app.constants import DEFAULT_CARTESIA_VOICE_ID
 from app.database import AsyncSessionLocal, get_db
 from app.prompts import get_full_system_prompt
 from app.middleware.auth import get_current_user, verify_internal_secret
@@ -215,9 +215,14 @@ async def make_outbound_call(
     kb_entries = kb_result.scalars().all()
     knowledge_base = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
 
-    voice_id = (agent.tts_voice_id or "").strip() or DEFAULT_ELEVENLABS_VOICE_ID
+    voice_id = (
+        (agent.tts_voice_id or "").strip()
+        or (getattr(settings, "CARTESIA_DEFAULT_VOICE_ID", None) or "").strip()
+        or DEFAULT_CARTESIA_VOICE_ID
+    )
+    llm_max_tokens = min(150, int(agent.llm_max_tokens or 150))
 
-    # Create room with metadata
+    # Create room with metadata (Deepgram STT, Groq LLM, Cartesia TTS)
     room_name = f"sip-{user.id}-{uuid.uuid4()}"
     call_id = uuid.uuid4()
 
@@ -226,18 +231,18 @@ async def make_outbound_call(
         {
             "system_prompt": full_system_prompt,
             "first_message": (agent.first_message or "Hey, hi! What can I do for you?").strip(),
-            "stt_provider": "elevenlabs",
-            "stt_model": getattr(agent, "stt_model", None) or "scribe_v2_realtime",
-            "stt_language": agent.stt_language or "en-US",
+            "stt_language": (agent.stt_language or "en").strip() or "en",
             "tts_voice_id": voice_id,
-            "tts_provider": "elevenlabs",
-            "tts_model": getattr(agent, "tts_model", None) or "eleven_turbo_v2_5",
+            "llm_model": (agent.llm_model or "llama-3.3-70b-versatile").strip(),
+            "llm_temperature": agent.llm_temperature if agent.llm_temperature is not None else 0.8,
+            "llm_max_tokens": llm_max_tokens,
             "silence_timeout": int(agent.silence_timeout or 30),
             "max_duration": int(agent.max_duration or 3600),
             "call_id": str(call_id),
             "agent_speaks_first": True,
             "user_id": str(user.id),
             "knowledge_base": knowledge_base,
+            "transfer_number": getattr(agent, "transfer_number", None) or (agent.tools_config or {}).get("transfer_number", ""),
         }
     )
 

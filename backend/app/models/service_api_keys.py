@@ -10,9 +10,12 @@ from app.database import Base
 
 
 class ServiceApiKeys(Base):
-    """API keys for OpenAI, ElevenLabs. Read first row."""
+    """API keys for OpenAI, ElevenLabs, Deepgram, Groq, Cartesia. Read first row."""
     __tablename__ = "api-keys"
 
     id = Column(BigInteger, Identity(always=True), primary_key=True)
     OPENAI_API_KEY = Column("OPENAI_API_KEY", Text, nullable=True, default="")
     ELEVENLABS_API_KEY = Column("ELEVENLABS_API_KEY", Text, nullable=True)
+    DEEPGRAM_API_KEY = Column("DEEPGRAM_API_KEY", Text, nullable=True)
+    CARTESIA_API_KEY = Column("CARTESIA_API_KEY", Text, nullable=True)
+    GROQ_API_KEY = Column("GROQ_API_KEY", Text, nullable=True)

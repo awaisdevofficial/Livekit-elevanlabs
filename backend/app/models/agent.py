@@ -27,15 +27,15 @@ class Agent(Base):
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=False)
     first_message = Column(String, nullable=True)
-    llm_model = Column(String, default="gpt-4o")  # gpt-4o for more natural, human-like replies; gpt-4o-mini for cost
+    llm_model = Column(String, default="llama-3.3-70b-versatile")  # Groq; voice agent stack
     llm_temperature = Column(Float, default=0.8)  # Slight variety for less robotic tone
-    llm_max_tokens = Column(Integer, default=300)  # Shorter for real-time voice
-    stt_provider = Column(String, default="elevenlabs")
-    stt_model = Column(String, default="scribe_v2_realtime")
-    stt_language = Column(String, default="en-US")
-    tts_provider = Column(String, default="elevenlabs")
+    llm_max_tokens = Column(Integer, default=150)  # Capped for real-time voice (Groq)
+    stt_provider = Column(String, default="deepgram")
+    stt_model = Column(String, default="nova-2")
+    stt_language = Column(String, default="en")
+    tts_provider = Column(String, default="cartesia")
     tts_voice_id = Column(String, nullable=True)
-    tts_model = Column(String, nullable=True)  # eleven_turbo_v2_5 or eleven_multilingual_v2
+    tts_model = Column(String, nullable=True)  # Cartesia sonic-2 (worker uses sonic-2)
     tts_stability = Column(Float, default=0.45)  # Slightly lower = more expressive, less robotic
     silence_timeout = Column(Integer, default=30)
     max_duration = Column(Integer, default=3600)

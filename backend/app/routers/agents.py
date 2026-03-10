@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.prompts import HUMAN_BEHAVIOR_PROMPT, get_full_system_prompt
 from livekit.api import AccessToken, LiveKitAPI, VideoGrants
 from app.config import settings
-from app.constants import DEFAULT_ELEVENLABS_VOICE_ID
+from app.constants import DEFAULT_CARTESIA_VOICE_ID
 import httpx as _httpx
 
 from app.database import get_db
@@ -198,7 +198,12 @@ async def _create_web_call_token_impl(
     room_name = f"webcall-{uuid.uuid4()}"
     call_id = uuid.uuid4()
 
-    voice_id = (agent.tts_voice_id or "").strip() or DEFAULT_ELEVENLABS_VOICE_ID
+    voice_id = (
+        (agent.tts_voice_id or "").strip()
+        or (getattr(settings, "CARTESIA_DEFAULT_VOICE_ID", None) or "").strip()
+        or DEFAULT_CARTESIA_VOICE_ID
+    )
+    llm_max_tokens = min(150, int(agent.llm_max_tokens or 150))
 
     full_system_prompt = get_full_system_prompt(agent.system_prompt)
     max_kb = getattr(settings, "MAX_KNOWLEDGE_BASE_LEN_FOR_TOKEN", 8000)
@@ -210,7 +215,7 @@ async def _create_web_call_token_impl(
     knowledge_base_raw = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
     knowledge_base_for_room = knowledge_base_raw[:max_kb] if len(knowledge_base_raw) > max_kb else knowledge_base_raw
 
-    # Full room metadata (agent worker reads ctx.room.metadata). Stored on LiveKit server, not in URL.
+    # Full room metadata (agent worker reads ctx.room.metadata). Deepgram STT, Groq LLM, Cartesia TTS.
     room_metadata_dict = {
         "type": "web_test",
         "test_title": f"Test call – {agent.name}",
@@ -220,16 +225,11 @@ async def _create_web_call_token_impl(
         "user_email": user.email,
         "system_prompt": full_system_prompt,
         "first_message": (agent.first_message or "Hey, hi! What can I do for you?").strip()[:2000],
-        "llm_model": agent.llm_model or "gpt-4o",
+        "llm_model": (agent.llm_model or "llama-3.3-70b-versatile").strip(),
         "llm_temperature": agent.llm_temperature if agent.llm_temperature is not None else 0.8,
-        "llm_max_tokens": agent.llm_max_tokens or 300,
-        "stt_provider": "elevenlabs",
-        "stt_model": agent.stt_model or "scribe_v2_realtime",
-        "stt_language": agent.stt_language or "en-US",
-        "tts_provider": "elevenlabs",
+        "llm_max_tokens": llm_max_tokens,
+        "stt_language": (agent.stt_language or "en").strip() or "en",
         "tts_voice_id": voice_id,
-        "tts_model": getattr(agent, "tts_model", None) or "eleven_turbo_v2_5",
-        "tts_stability": agent.tts_stability if agent.tts_stability is not None else 0.45,
         "silence_timeout": int(agent.silence_timeout or 30),
         "max_duration": int(agent.max_duration or 3600),
         "call_id": str(call_id),

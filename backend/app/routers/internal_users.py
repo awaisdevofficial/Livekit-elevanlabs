@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants import DEFAULT_ELEVENLABS_VOICE_ID
+from app.config import settings
+from app.constants import DEFAULT_CARTESIA_VOICE_ID
 from app.database import get_db
 from app.middleware.auth import verify_internal_secret
 from app.models.agent import Agent
@@ -97,20 +98,20 @@ async def get_default_agent_config(
     knowledge_base = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
 
     full_system_prompt = get_full_system_prompt(agent.system_prompt)
-    tts_voice_id = (agent.tts_voice_id or "").strip() or DEFAULT_ELEVENLABS_VOICE_ID
+    tts_voice_id = (
+        (agent.tts_voice_id or "").strip()
+        or (getattr(settings, "CARTESIA_DEFAULT_VOICE_ID", None) or "").strip()
+        or DEFAULT_CARTESIA_VOICE_ID
+    )
+    llm_max_tokens = min(150, int(agent.llm_max_tokens or 150))
     return {
         "system_prompt": full_system_prompt,
         "first_message": (agent.first_message or "Hey, hi! What can I do for you?").strip(),
-        "stt_provider": "elevenlabs",
-        "stt_model": getattr(agent, "stt_model", None) or "scribe_v2_realtime",
-        "stt_language": agent.stt_language or "en-US",
-        "tts_provider": "elevenlabs",
+        "stt_language": (agent.stt_language or "en").strip() or "en",
         "tts_voice_id": tts_voice_id,
-        "tts_model": getattr(agent, "tts_model", None) or "eleven_turbo_v2_5",
-        "tts_stability": agent.tts_stability if agent.tts_stability is not None else 0.45,
-        "llm_model": agent.llm_model or "gpt-4o",
+        "llm_model": (agent.llm_model or "llama-3.3-70b-versatile").strip(),
         "llm_temperature": agent.llm_temperature if agent.llm_temperature is not None else 0.8,
-        "llm_max_tokens": agent.llm_max_tokens or 300,
+        "llm_max_tokens": llm_max_tokens,
         "knowledge_base": knowledge_base,
         "agent_speaks_first": True,
         "transfer_number": getattr(agent, "transfer_number", None) or (agent.tools_config or {}).get("transfer_number", ""),

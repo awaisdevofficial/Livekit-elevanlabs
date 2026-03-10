@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     ELEVENLABS_TTS_SIMILARITY_BOOST: float = 0.75  # Higher = closer to voice character, natural clarity
     # TTS streaming: 0=default, 1–4=lower latency (2=good balance, 4=max latency / may affect number/date pronunciation)
     ELEVENLABS_STREAMING_LATENCY: int = 2
+    # STT: Deepgram; LLM: Groq; TTS: Cartesia. API keys from DB (api-keys).
+    DEEPGRAM_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    CARTESIA_API_KEY: str = ""
+    CARTESIA_DEFAULT_VOICE_ID: str = "a0e99841-438c-4a64-b679-ae501e7d6091"
     # Optional self-hosted TTS/STT (Piper / Whisper) for /settings/tts
     PIPER_TTS_URL: str = ""
     PIPER_TTS_VOICE: str = ""

@@ -83,12 +83,6 @@ def prewarm(proc: JobProcess):
 
 async def entrypoint(ctx: JobContext):
     logger.info("Agent job started room=%s", ctx.room.name)
-    # Log STT/TTS config (no secrets) so failures are easier to debug
-    logger.info(
-        "STT/TTS: ElevenLabs (model_stt=%s, model_tts=%s)",
-        app_settings.ELEVENLABS_STT_MODEL or "scribe_v2_realtime",
-        app_settings.ELEVENLABS_TTS_MODEL or "eleven_turbo_v2_5",
-    )
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
     participant = await ctx.wait_for_participant()
@@ -127,14 +121,10 @@ async def entrypoint(ctx: JobContext):
             agent_config = {
                 "system_prompt": "You are a helpful, friendly voice assistant. Keep replies short and natural.",
                 "first_message": "Hey, hi! What can I do for you?",
-                "tts_provider": "elevenlabs",
-                "tts_voice_id": app_settings.ELEVENLABS_DEFAULT_VOICE_ID or "bIHbv24MWmeRgasZH58o",
-                "tts_model": app_settings.ELEVENLABS_TTS_MODEL or "eleven_turbo_v2_5",
-                "stt_model": app_settings.ELEVENLABS_STT_MODEL or "scribe_v2_realtime",
-                "llm_model": "gpt-4o",
+                "tts_voice_id": (app_settings.CARTESIA_DEFAULT_VOICE_ID or "a0e99841-438c-4a64-b679-ae501e7d6091").strip(),
+                "llm_model": "llama-3.3-70b-versatile",
                 "llm_temperature": 0.8,
-                "llm_max_tokens": 300,
-                "tts_stability": getattr(app_settings, "ELEVENLABS_TTS_STABILITY", 0.45),
+                "llm_max_tokens": 150,
             }
 
     # User's system prompt is primary; we only wrap it with real-time + human-behavior instructions
@@ -159,7 +149,7 @@ async def entrypoint(ctx: JobContext):
     # User's first message is always used when provided
     first_message = (agent_config.get("first_message") or "Hey, hi! What can I do for you?").strip()
 
-    stt_language = agent_config.get("stt_language", "en-US")
+    stt_language = agent_config.get("stt_language", "en")
 
     transcript_lines: list[dict] = []
     start_time = time.time()
@@ -190,95 +180,71 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning("Failed to publish transcript to Redis: %s", e)
 
-    # STT — ElevenLabs Scribe (best real-time: low latency, high accuracy)
-    elevenlabs_key = (app_settings.ELEVENLABS_API_KEY or "").strip()
-    if not elevenlabs_key:
-        raise RuntimeError("ELEVENLABS_API_KEY is not configured. Cannot start agent worker.")
+    # STT — Deepgram Nova-2
+    deepgram_key = (app_settings.DEEPGRAM_API_KEY or "").strip()
+    if not deepgram_key:
+        raise RuntimeError("DEEPGRAM_API_KEY is not configured. Cannot start agent worker.")
 
-    from livekit.plugins import elevenlabs as elevenlabs_plugin
+    from livekit.plugins import deepgram as deepgram_plugin
 
-    stt_model_id = (
-        (agent_config.get("stt_model") or "").strip()
-        or app_settings.ELEVENLABS_STT_MODEL
-        or "scribe_v2_realtime"
+    stt = deepgram_plugin.STT(
+        api_key=deepgram_key,
+        model="nova-2",
+        language=stt_language or "en",
+        smart_format=True,
+        interim_results=True,
+        endpointing_ms=200,
     )
-    stt = elevenlabs_plugin.STT(
-        api_key=elevenlabs_key,
-        model_id=stt_model_id,
-        language_code=(stt_language or "en").split("-")[0],
-    )
-    logger.info("STT: ElevenLabs (%s)", stt_model_id)
+    logger.info("STT: Deepgram (nova-2, language=%s, smart_format=True, endpointing_ms=200)", stt_language or "en")
 
-    # LLM — OpenAI; use agent config for model/temperature/max_tokens (more human, real-time)
+    # LLM — Groq (OpenAI-compatible)
     from livekit.plugins import openai as openai_plugin
 
-    openai_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
-    if not openai_key:
-        raise RuntimeError("OPENAI_API_KEY is required for the LLM. Set it in DB (system_settings) or environment.")
+    groq_key = (app_settings.GROQ_API_KEY or "").strip()
+    if not groq_key:
+        raise RuntimeError("GROQ_API_KEY is required for the LLM. Set it in DB (api-keys) or environment.")
 
-    # LLM — gpt-4o best for fast, natural voice; fallback to config/env
-    llm_model = (agent_config.get("llm_model") or "gpt-4o").strip()
+    llm_model = (agent_config.get("llm_model") or "llama-3.3-70b-versatile").strip()
     llm_temperature = float(agent_config.get("llm_temperature", 0.8))
-    llm_max_tokens = int(agent_config.get("llm_max_tokens", 300))
+    llm_max_tokens = int(agent_config.get("llm_max_tokens", 150))
     llm_temperature = max(0.5, min(1.0, llm_temperature))
-    llm_max_tokens = max(100, min(800, llm_max_tokens))
+    llm_max_tokens = max(1, min(150, llm_max_tokens))
 
     llm_kw: dict = {
         "model": llm_model,
-        "api_key": openai_key,
+        "api_key": groq_key,
+        "base_url": "https://api.groq.com/openai/v1",
         "temperature": llm_temperature,
         "max_completion_tokens": llm_max_tokens,
     }
     try:
         timeout_sec = float(os.environ.get("OPENAI_TIMEOUT", "30"))
         if timeout_sec > 0:
-            import httpx
             llm_kw["timeout"] = httpx.Timeout(timeout_sec)
     except (TypeError, ValueError):
         pass
     llm = openai_plugin.LLM(**llm_kw)
-    logger.info("LLM: OpenAI (%s, temp=%.2f, max_tokens=%d)", llm_model, llm_temperature, llm_max_tokens)
+    logger.info("LLM: Groq (%s, temp=%.2f, max_tokens=%d)", llm_model, llm_temperature, llm_max_tokens)
 
-    # TTS — eleven_turbo_v2_5: best latency for real-time; eleven_multilingual_v2 for max quality
-    raw_voice = (agent_config.get("tts_voice_id") or "").strip()
-    default_voice = (app_settings.ELEVENLABS_DEFAULT_VOICE_ID or "bIHbv24MWmeRgasZH58o").strip()
-    tts_voice_id = default_voice if (not raw_voice or "_" in raw_voice) else raw_voice
-    tts_model = (
-        (agent_config.get("tts_model") or "").strip()
-        or app_settings.ELEVENLABS_TTS_MODEL
-        or "eleven_turbo_v2_5"
-    ).strip()
-    # Stability: lower = more expressive (less robotic); similarity_boost: higher = closer to voice character
-    tts_stability = float(agent_config.get("tts_stability", getattr(app_settings, "ELEVENLABS_TTS_STABILITY", 0.45)))
-    tts_similarity = float(getattr(app_settings, "ELEVENLABS_TTS_SIMILARITY_BOOST", 0.75))
-    tts_stability = max(0.0, min(1.0, tts_stability))
-    tts_similarity = max(0.0, min(1.0, tts_similarity))
-    voice_settings = elevenlabs_plugin.VoiceSettings(
-        stability=tts_stability,
-        similarity_boost=tts_similarity,
-    )
+    # TTS — Cartesia Sonic
+    cartesia_key = (app_settings.CARTESIA_API_KEY or "").strip()
+    if not cartesia_key:
+        raise RuntimeError("CARTESIA_API_KEY is not configured. Cannot start agent worker.")
 
-    # Streaming: lower latency = audio starts playing sooner (1–4; 2 = good balance)
-    tts_streaming_latency = int(
-        agent_config.get("tts_streaming_latency")
-        if agent_config.get("tts_streaming_latency") is not None
-        else os.environ.get("ELEVENLABS_STREAMING_LATENCY", getattr(app_settings, "ELEVENLABS_STREAMING_LATENCY", 2))
-    )
-    tts_streaming_latency = max(0, min(4, tts_streaming_latency))
+    from livekit.plugins import cartesia as cartesia_plugin
 
-    tts_kw: dict = {
-        "api_key": elevenlabs_key,
-        "voice_id": tts_voice_id,
-        "model": tts_model,
-        "voice_settings": voice_settings,
-    }
-    if tts_streaming_latency >= 1:
-        tts_kw["streaming_latency"] = tts_streaming_latency
-    tts = elevenlabs_plugin.TTS(**tts_kw)
-    logger.info(
-        "TTS: ElevenLabs (voice=%s, model=%s, stability=%.2f, streaming_latency=%s)",
-        tts_voice_id, tts_model, tts_stability, tts_streaming_latency or "default",
+    tts_voice_id = (
+        (agent_config.get("tts_voice_id") or "").strip()
+        or (app_settings.CARTESIA_DEFAULT_VOICE_ID or "").strip()
+        or "a0e99841-438c-4a64-b679-ae501e7d6091"
     )
+    tts = cartesia_plugin.TTS(
+        api_key=cartesia_key,
+        model="sonic-2",
+        voice=tts_voice_id,
+        language="en",
+    )
+    logger.info("TTS: Cartesia (sonic-2, voice=%s, language=en)", tts_voice_id)
 
     # AgentSession — use TurnHandlingConfig if available, else standard kwargs
     _session_kw: dict = {
@@ -290,8 +256,8 @@ async def entrypoint(ctx: JobContext):
         "preemptive_generation": True,
     }
     # Fast turn-taking: tighter endpointing = lower latency; allow barge-in
-    _min_ep = float(os.environ.get("MIN_ENDPOINTING_DELAY", "0.03"))
-    _max_ep = float(os.environ.get("MAX_ENDPOINTING_DELAY", "0.4"))
+    _min_ep = float(os.environ.get("MIN_ENDPOINTING_DELAY", "0.02"))
+    _max_ep = float(os.environ.get("MAX_ENDPOINTING_DELAY", "0.25"))
     try:
         from livekit.agents.voice import TurnHandlingConfig
 

@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from twilio.twiml.voice_response import Dial, VoiceResponse
 
 from app.config import settings
-from app.constants import DEFAULT_ELEVENLABS_VOICE_ID
+from app.constants import DEFAULT_CARTESIA_VOICE_ID
 from app.database import get_db
 from app.prompts import get_full_system_prompt
 from app.models.agent import Agent
@@ -98,20 +98,20 @@ async def handle_inbound(request: Request, db: AsyncSession = Depends(get_db)):
     knowledge_base = "\n\n".join([f"[{e.name}]\n{e.content}" for e in kb_entries])
 
     full_system_prompt = get_full_system_prompt(agent.system_prompt)
-    tts_voice_id = (agent.tts_voice_id or "").strip() or DEFAULT_ELEVENLABS_VOICE_ID
+    tts_voice_id = (
+        (agent.tts_voice_id or "").strip()
+        or (getattr(settings, "CARTESIA_DEFAULT_VOICE_ID", None) or "").strip()
+        or DEFAULT_CARTESIA_VOICE_ID
+    )
+    llm_max_tokens = min(150, int(agent.llm_max_tokens or 150))
     metadata = json.dumps({
         "system_prompt": full_system_prompt,
         "first_message": (agent.first_message or "Hey, hi! What can I do for you?").strip(),
-        "stt_provider": "elevenlabs",
-        "stt_model": getattr(agent, "stt_model", None) or "scribe_v2_realtime",
-        "stt_language": agent.stt_language or "en-US",
-        "tts_provider": "elevenlabs",
+        "stt_language": (agent.stt_language or "en").strip() or "en",
         "tts_voice_id": tts_voice_id,
-        "tts_model": getattr(agent, "tts_model", None) or "eleven_turbo_v2_5",
-        "tts_stability": agent.tts_stability if agent.tts_stability is not None else 0.45,
-        "llm_model": agent.llm_model or "gpt-4o",
+        "llm_model": (agent.llm_model or "llama-3.3-70b-versatile").strip(),
         "llm_temperature": agent.llm_temperature if agent.llm_temperature is not None else 0.8,
-        "llm_max_tokens": agent.llm_max_tokens or 300,
+        "llm_max_tokens": llm_max_tokens,
         "silence_timeout": int(agent.silence_timeout or 30),
         "max_duration": int(agent.max_duration or 3600),
         "call_id": str(call_id),

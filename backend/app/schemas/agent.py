@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 SUPPORTED_LANGUAGES = {
+    "en",
     "en-US",
     "en-GB",
     "es-ES",
@@ -25,15 +26,15 @@ class AgentCreate(BaseModel):
     description: Optional[str] = None
     system_prompt: str = Field(..., min_length=1, max_length=MAX_SYSTEM_PROMPT_LEN)
     first_message: str = Field(..., min_length=1, max_length=MAX_FIRST_MESSAGE_LEN)
-    llm_model: str = "gpt-4o"
+    llm_model: str = "llama-3.3-70b-versatile"
     llm_temperature: float = Field(0.8, ge=0.0, le=1.0)
-    llm_max_tokens: int = Field(300, ge=50, le=4000)
-    stt_provider: str = "elevenlabs"
-    stt_model: str = "scribe_v2_realtime"
-    stt_language: str = "en-US"
-    tts_provider: str = "elevenlabs"
+    llm_max_tokens: int = Field(150, ge=1, le=4000)  # Worker caps at 150 for real-time
+    stt_provider: str = "deepgram"
+    stt_model: str = "nova-2"
+    stt_language: str = "en"
+    tts_provider: str = "cartesia"
     tts_voice_id: Optional[str] = None
-    tts_model: Optional[str] = None  # eleven_turbo_v2_5 (fast) or eleven_multilingual_v2 (quality)
+    tts_model: Optional[str] = None  # Cartesia model (worker uses sonic-2)
     tts_stability: float = Field(0.45, ge=0.0, le=1.0)
     silence_timeout: int = Field(30, ge=5, le=300)
     max_duration: int = Field(3600, ge=60, le=14400)
@@ -67,7 +68,7 @@ class AgentCreate(BaseModel):
     @classmethod
     def validate_language(cls, v: str) -> str:
         if not v:
-            return "en-US"
+            return "en"
         v = v.strip()
         if v not in SUPPORTED_LANGUAGES:
             raise ValueError(f"Unsupported language '{v}'. Supported: {', '.join(sorted(SUPPORTED_LANGUAGES))}")

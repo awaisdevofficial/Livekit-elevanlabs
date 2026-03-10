@@ -70,6 +70,12 @@ async def load_cache_from_db() -> None:
                     d["OPENAI_API_KEY"] = str(row.OPENAI_API_KEY).strip()
                 if row.ELEVENLABS_API_KEY and str(row.ELEVENLABS_API_KEY).strip():
                     d["ELEVENLABS_API_KEY"] = str(row.ELEVENLABS_API_KEY).strip()
+                if row.DEEPGRAM_API_KEY and str(row.DEEPGRAM_API_KEY).strip():
+                    d["DEEPGRAM_API_KEY"] = str(row.DEEPGRAM_API_KEY).strip()
+                if row.CARTESIA_API_KEY and str(row.CARTESIA_API_KEY).strip():
+                    d["CARTESIA_API_KEY"] = str(row.CARTESIA_API_KEY).strip()
+                if row.GROQ_API_KEY and str(row.GROQ_API_KEY).strip():
+                    d["GROQ_API_KEY"] = str(row.GROQ_API_KEY).strip()
                 if d:
                     _api_keys_rows.append(d)
     except Exception as e:
@@ -94,7 +100,7 @@ async def load_from_db_standalone(database_url: str) -> list[dict[str, str]]:
         conn = await asyncpg.connect(conn_str)
         try:
             rows = await conn.fetch(
-                'SELECT "OPENAI_API_KEY", "ELEVENLABS_API_KEY" FROM "api-keys" ORDER BY id'
+                'SELECT "OPENAI_API_KEY", "ELEVENLABS_API_KEY", "DEEPGRAM_API_KEY", "CARTESIA_API_KEY", "GROQ_API_KEY" FROM "api-keys" ORDER BY id'
             )
             for row in rows:
                 d: dict[str, str] = {}
@@ -104,6 +110,15 @@ async def load_from_db_standalone(database_url: str) -> list[dict[str, str]]:
                 v = row.get("ELEVENLABS_API_KEY")
                 if v and str(v).strip():
                     d["ELEVENLABS_API_KEY"] = str(v).strip()
+                v = row.get("DEEPGRAM_API_KEY")
+                if v and str(v).strip():
+                    d["DEEPGRAM_API_KEY"] = str(v).strip()
+                v = row.get("CARTESIA_API_KEY")
+                if v and str(v).strip():
+                    d["CARTESIA_API_KEY"] = str(v).strip()
+                v = row.get("GROQ_API_KEY")
+                if v and str(v).strip():
+                    d["GROQ_API_KEY"] = str(v).strip()
                 if d:
                     out.append(d)
         finally:
