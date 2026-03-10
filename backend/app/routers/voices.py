@@ -98,7 +98,14 @@ async def _fetch_elevenlabs_voices() -> list[Voice]:
 @router.get("", response_model=List[Voice])
 async def list_voices(user: User = Depends(get_current_user)):  # noqa: ARG001
     """Return ElevenLabs voices."""
-    voices = await _fetch_elevenlabs_voices()
+    try:
+        voices = await _fetch_elevenlabs_voices()
+    except Exception as e:
+        logger.exception("Failed to fetch ElevenLabs voices: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="ElevenLabs voices unavailable. Add keys in api-keys table.",
+        ) from e
     if not voices:
         raise HTTPException(
             status_code=503,

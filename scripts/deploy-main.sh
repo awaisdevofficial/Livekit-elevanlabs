@@ -47,4 +47,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-placeholder}
 ENVFILE
 
 docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" --env-file backend/.env.production up -d --build
+
+# Run phone_numbers schema migration (add origination_uri, drop organization_id) so /api/v1/phone-numbers does not 500
+echo "=== Running DB migration (phone_numbers) ==="
+docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" --env-file backend/.env.production run --rm backend python scripts/run_migrate_phone_numbers.py 2>/dev/null || true
+
 echo "=== Done. Check: docker ps ==="

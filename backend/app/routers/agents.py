@@ -1,11 +1,14 @@
+import logging
 import os
 from typing import List
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.prompts import HUMAN_BEHAVIOR_PROMPT, get_full_system_prompt
 from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.prompts import HUMAN_BEHAVIOR_PROMPT, get_full_system_prompt
 from livekit.api import AccessToken, LiveKitAPI, VideoGrants
 from app.config import settings
 from app.constants import DEFAULT_ELEVENLABS_VOICE_ID
@@ -21,6 +24,7 @@ from app.schemas.agent import AgentCreate, AgentResponse, AgentUpdate
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=List[AgentResponse])
@@ -28,12 +32,19 @@ async def list_agents(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Agent)
-        .where(Agent.user_id == user.id, Agent.is_active.is_(True))
-        .order_by(Agent.created_at.desc())
-    )
-    return result.scalars().all()
+    try:
+        result = await db.execute(
+            select(Agent)
+            .where(Agent.user_id == user.id, Agent.is_active.is_(True))
+            .order_by(Agent.created_at.desc())
+        )
+        return result.scalars().all()
+    except ProgrammingError as e:
+        logger.warning("agents query failed (schema?): %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="Database schema may be outdated. Ensure all migrations are applied.",
+        ) from e
 
 
 @router.post("", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)

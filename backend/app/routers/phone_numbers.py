@@ -1,9 +1,11 @@
+import logging
 from datetime import datetime
 from typing import List, Optional
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from twilio.rest import Client as TwilioClient
 
@@ -16,6 +18,7 @@ from app.schemas.phone_number import PhoneNumberAssign, PhoneNumberResponse
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _get_origination_uri() -> Optional[str]:
@@ -43,13 +46,26 @@ async def list_numbers(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(PhoneNumber).where(
-            PhoneNumber.user_id == user.id,
-            PhoneNumber.is_active.is_(True),
+    try:
+        result = await db.execute(
+            select(PhoneNumber).where(
+                PhoneNumber.user_id == user.id,
+                PhoneNumber.is_active.is_(True),
+            )
         )
-    )
-    return result.scalars().all()
+        return result.scalars().all()
+    except ProgrammingError as e:
+        msg = str(e).lower()
+        if "origination_uri" in msg or "column" in msg or "does not exist" in msg:
+            logger.warning("phone_numbers schema may be outdated: %s", e)
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Database migration required. On the server, run from backend dir: "
+                    "ENV=production python scripts/run_migrate_phone_numbers.py"
+                ),
+            ) from e
+        raise
 
 
 @router.get("/search")
