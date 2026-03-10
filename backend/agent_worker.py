@@ -247,11 +247,16 @@ async def entrypoint(ctx: JobContext):
 
     from livekit.plugins import cartesia as cartesia_plugin
 
-    tts_voice_id = (
-        (agent_config.get("tts_voice_id") or "").strip()
-        or (app_settings.CARTESIA_DEFAULT_VOICE_ID or "").strip()
-        or "a0e99841-438c-4a64-b679-ae501e7d6091"
-    )
+    # Cartesia expects UUID-format voice IDs (e.g. a0e99841-438c-4a64-b679-ae501e7d6091).
+    # If agent has an ElevenLabs-style voice ID (e.g. XrExE9yKIg1WjnnlVkGX), use Cartesia default.
+    _raw_voice = (agent_config.get("tts_voice_id") or "").strip()
+    _cartesia_default = (app_settings.CARTESIA_DEFAULT_VOICE_ID or "").strip() or "a0e99841-438c-4a64-b679-ae501e7d6091"
+    if _raw_voice and "-" in _raw_voice and len(_raw_voice) == 36:
+        tts_voice_id = _raw_voice
+    else:
+        tts_voice_id = _cartesia_default
+        if _raw_voice:
+            logger.info("TTS: agent tts_voice_id is not a Cartesia UUID, using default voice=%s", tts_voice_id)
     tts = cartesia_plugin.TTS(
         api_key=cartesia_key,
         model="sonic-2",
