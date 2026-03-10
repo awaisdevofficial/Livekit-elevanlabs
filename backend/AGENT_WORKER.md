@@ -10,7 +10,7 @@ The agent worker handles **all** voice calls: **web test calls** (browser) and *
   - `aec_warmup_duration=0` so barge-in works from the very start.
   - `min_interruption_duration=0.3`, `min_interruption_words=2` so brief noise/breath doesn’t trigger; real speech does.
   - `false_interruption_timeout=None` and `resume_false_interruption=False` so the agent does not auto-resume after you interrupt.
-- **Fast response:** `preemptive_generation=True` and short prompts keep replies quick. If the agent still doesn’t stop when you speak, check that only one worker is running and that the user’s mic is unmuted in the test call UI.
+- **Fast response:** `preemptive_generation=True` and short prompts keep replies quick. TTS uses **streaming** with `streaming_latency` (env `ELEVENLABS_STREAMING_LATENCY`, 0–4; default 2) so audio starts playing as soon as the first chunks are ready. If the agent still doesn’t stop when you speak, check that only one worker is running and that the user’s mic is unmuted in the test call UI.
 
 **No interruption / TTS keeps completing:** The worker only applies `aec_warmup_duration=0` and related options when the installed `livekit-agents` version supports them (1.5+). If the server has an older SDK, the agent uses defaults (e.g. 3s AEC warmup) and will not barge-in at the start. Upgrade on the server so barge-in works:
 

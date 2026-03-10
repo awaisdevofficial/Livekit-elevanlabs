@@ -4,6 +4,7 @@ import logging
 import os
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import urlparse
 import uuid
 
 import httpx
@@ -226,9 +227,11 @@ async def make_outbound_call(
             "system_prompt": full_system_prompt,
             "first_message": (agent.first_message or "Hey, hi! What can I do for you?").strip(),
             "stt_provider": "elevenlabs",
+            "stt_model": getattr(agent, "stt_model", None) or "scribe_v2_realtime",
             "stt_language": agent.stt_language or "en-US",
             "tts_voice_id": voice_id,
             "tts_provider": "elevenlabs",
+            "tts_model": getattr(agent, "tts_model", None) or "eleven_turbo_v2_5",
             "silence_timeout": int(agent.silence_timeout or 30),
             "max_duration": int(agent.max_duration or 3600),
             "call_id": str(call_id),
@@ -238,9 +241,14 @@ async def make_outbound_call(
         }
     )
 
-    # Create LiveKit room
+    # Create LiveKit room (use settings.LIVEKIT_API_URL for consistency)
+    livekit_url = (settings.LIVEKIT_API_URL or "").strip() or os.environ.get("LIVEKIT_API_URL", "")
+    if not livekit_url and settings.LIVEKIT_URL:
+        p = urlparse(settings.LIVEKIT_URL)
+        scheme = "https" if (p.scheme or "").lower() == "wss" else "http"
+        livekit_url = f"{scheme}://{p.netloc}"
     async with livekit_api.LiveKitAPI(
-        url=os.environ.get("LIVEKIT_API_URL", "http://54.151.186.116:7880"),
+        url=livekit_url,
         api_key=settings.LIVEKIT_API_KEY,
         api_secret=settings.LIVEKIT_API_SECRET,
     ) as lk:

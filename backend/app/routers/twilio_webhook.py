@@ -11,8 +11,11 @@
 
 from datetime import datetime
 import json
+import logging
 import os
+import time
 import uuid
+from urllib.parse import urlparse
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Request, Response
@@ -35,10 +38,12 @@ from app.models.telephony import UserTelephonyConfig
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/inbound")
 async def handle_inbound(request: Request, db: AsyncSession = Depends(get_db)):
+    t0 = time.perf_counter()
     form = await request.form()
     to_number = form.get("To", "")
     from_number = form.get("From", "")
@@ -139,15 +144,27 @@ async def handle_inbound(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception:
         pass
 
-    # Create LiveKit room with metadata
+    # Create LiveKit room with metadata (use settings so backend and worker use same server)
+    t_before_room = time.perf_counter()
+    livekit_url = (settings.LIVEKIT_API_URL or "").strip() or os.environ.get("LIVEKIT_API_URL", "")
+    if not livekit_url and settings.LIVEKIT_URL:
+        p = urlparse(settings.LIVEKIT_URL)
+        scheme = "https" if (p.scheme or "").lower() == "wss" else "http"
+        livekit_url = f"{scheme}://{p.netloc}"
     async with livekit_api.LiveKitAPI(
-        url=os.environ.get("LIVEKIT_API_URL", "http://54.151.186.116:7880"),
+        url=livekit_url,
         api_key=settings.LIVEKIT_API_KEY,
         api_secret=settings.LIVEKIT_API_SECRET,
     ) as lk:
         await lk.room.create_room(
             CreateRoomRequest(name=room_name, metadata=metadata)
         )
+    room_elapsed_ms = (time.perf_counter() - t_before_room) * 1000
+    total_elapsed_ms = (time.perf_counter() - t0) * 1000
+    logger.info(
+        "[inbound] room=%s create_room_ms=%.0f total_webhook_ms=%.0f",
+        room_name, room_elapsed_ms, total_elapsed_ms,
+    )
 
     # SIP URI to connect Twilio to LiveKit (room as query param so LiveKit routes to correct room)
     livekit_host = settings.LIVEKIT_URL.replace("wss://", "").replace("ws://", "").split("/")[0]

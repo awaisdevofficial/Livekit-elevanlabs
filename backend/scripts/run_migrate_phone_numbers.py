@@ -47,6 +47,12 @@ async def main():
             DROP COLUMN IF EXISTS organization_id;
         """)
         print("OK: phone_numbers.organization_id dropped if present.")
+        # Add use_for (inbound | outbound | both) for agent number assignment
+        await conn.execute("""
+            ALTER TABLE phone_numbers
+            ADD COLUMN IF NOT EXISTS use_for VARCHAR(20) NOT NULL DEFAULT 'both';
+        """)
+        print("OK: phone_numbers.use_for ensured.")
         # Drop organizations table if present
         await conn.execute("DROP TABLE IF EXISTS organizations;")
         print("OK: organizations table dropped if present.")

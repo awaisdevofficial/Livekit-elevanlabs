@@ -59,6 +59,9 @@ from livekit.plugins import silero
 logger = logging.getLogger("resona-agent")
 logging.basicConfig(level=logging.INFO)
 
+# Log response latency (user final transcript -> agent first speech). Set to "0" or "false" to disable.
+LOG_LATENCY = os.environ.get("LOG_LATENCY", "1").lower() not in ("0", "false", "no")
+
 
 async def end_call(call_id: str, transcript_lines: list, duration: int):
     if not call_id:
@@ -255,13 +258,27 @@ async def entrypoint(ctx: JobContext):
         similarity_boost=tts_similarity,
     )
 
-    tts = elevenlabs_plugin.TTS(
-        api_key=elevenlabs_key,
-        voice_id=tts_voice_id,
-        model=tts_model,
-        voice_settings=voice_settings,
+    # Streaming: lower latency = audio starts playing sooner (1–4; 2 = good balance)
+    tts_streaming_latency = int(
+        agent_config.get("tts_streaming_latency")
+        if agent_config.get("tts_streaming_latency") is not None
+        else os.environ.get("ELEVENLABS_STREAMING_LATENCY", getattr(app_settings, "ELEVENLABS_STREAMING_LATENCY", 2))
     )
-    logger.info("TTS: ElevenLabs (voice=%s, model=%s, stability=%.2f)", tts_voice_id, tts_model, tts_stability)
+    tts_streaming_latency = max(0, min(4, tts_streaming_latency))
+
+    tts_kw: dict = {
+        "api_key": elevenlabs_key,
+        "voice_id": tts_voice_id,
+        "model": tts_model,
+        "voice_settings": voice_settings,
+    }
+    if tts_streaming_latency >= 1:
+        tts_kw["streaming_latency"] = tts_streaming_latency
+    tts = elevenlabs_plugin.TTS(**tts_kw)
+    logger.info(
+        "TTS: ElevenLabs (voice=%s, model=%s, stability=%.2f, streaming_latency=%s)",
+        tts_voice_id, tts_model, tts_stability, tts_streaming_latency or "default",
+    )
 
     # AgentSession — use TurnHandlingConfig if available, else standard kwargs
     _session_kw: dict = {
@@ -272,23 +289,26 @@ async def entrypoint(ctx: JobContext):
         "turn_detection": "vad",
         "preemptive_generation": True,
     }
-    # Fast turn-taking: low endpointing delay = quicker first response; allow barge-in
+    # Fast turn-taking: tighter endpointing = lower latency; allow barge-in
+    _min_ep = float(os.environ.get("MIN_ENDPOINTING_DELAY", "0.03"))
+    _max_ep = float(os.environ.get("MAX_ENDPOINTING_DELAY", "0.4"))
     try:
         from livekit.agents.voice import TurnHandlingConfig
 
         _session_kw["turn_handling"] = TurnHandlingConfig(
-            min_endpointing_delay=0.05,
-            max_endpointing_delay=0.5,
+            min_endpointing_delay=_min_ep,
+            max_endpointing_delay=_max_ep,
             allow_interruptions=True,
-            min_interruption_duration=0.25,
+            min_interruption_duration=0.2,
             min_interruption_words=2,
         )
     except ImportError:
         _session_kw["allow_interruptions"] = True
-        _session_kw["min_endpointing_delay"] = 0.05
-        _session_kw["max_endpointing_delay"] = 0.5
-        _session_kw["min_interruption_duration"] = 0.25
+        _session_kw["min_endpointing_delay"] = _min_ep
+        _session_kw["max_endpointing_delay"] = _max_ep
+        _session_kw["min_interruption_duration"] = 0.2
         _session_kw["min_interruption_words"] = 2
+    logger.info("Turn handling: min_endpointing=%.2fs max_endpointing=%.2fs", _min_ep, _max_ep)
 
     # Add optional params only if AgentSession accepts them
     try:
@@ -308,11 +328,18 @@ async def entrypoint(ctx: JobContext):
 
     session = AgentSession(**_session_kw)
 
+    # Per-room latency tracking (user final transcript -> agent first speech)
+    user_final_at: float | None = None
+
     @session.on("user_input_transcribed")
     def on_user_transcript(event: UserInputTranscribedEvent):
+        nonlocal user_final_at
         if event.is_final and event.transcript.strip():
             text = event.transcript.strip()
-            logger.info(f"User: {text}")
+            user_final_at = time.perf_counter()
+            if LOG_LATENCY:
+                logger.info("[latency] user_final_transcript room=%s: %s", room_id, text[:60])
+            logger.info("User: %s", text)
             transcript_lines.append(
                 {
                     "role": "user",
@@ -327,9 +354,13 @@ async def entrypoint(ctx: JobContext):
 
     @session.on("agent_speech_committed")
     def on_agent_speech(text: str):
+        nonlocal user_final_at
         if text and text.strip():
             cleaned = text.strip()
-            logger.info(f"Agent: {cleaned}")
+            if LOG_LATENCY and user_final_at is not None:
+                latency_ms = (time.perf_counter() - user_final_at) * 1000
+                logger.info("[latency] agent_speech_committed room=%s response_latency_ms=%.0f text=%s", room_id, latency_ms, cleaned[:60])
+            logger.info("Agent: %s", cleaned)
             transcript_lines.append(
                 {
                     "role": "agent",

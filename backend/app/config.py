@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     ELEVENLABS_TTS_MODEL: str = "eleven_turbo_v2_5"  # Best for real-time; use eleven_multilingual_v2 for max quality
     ELEVENLABS_TTS_STABILITY: float = 0.45  # Lower = more expressive, less robotic (0.3–0.5 for conversational)
     ELEVENLABS_TTS_SIMILARITY_BOOST: float = 0.75  # Higher = closer to voice character, natural clarity
+    # TTS streaming: 0=default, 1–4=lower latency (2=good balance, 4=max latency / may affect number/date pronunciation)
+    ELEVENLABS_STREAMING_LATENCY: int = 2
     # Optional self-hosted TTS/STT (Piper / Whisper) for /settings/tts
     PIPER_TTS_URL: str = ""
     PIPER_TTS_VOICE: str = ""
