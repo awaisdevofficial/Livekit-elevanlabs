@@ -123,8 +123,9 @@ async def load_from_db_standalone(database_url: str) -> list[dict[str, str]]:
                     out.append(d)
         finally:
             await conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger("app.system_settings").warning("load_from_db_standalone failed (check api-keys table has DEEPGRAM_API_KEY, GROQ_API_KEY, CARTESIA_API_KEY): %s", e)
     return out
 
 
@@ -132,16 +133,21 @@ def run_load_system_settings_into_env() -> None:
     """
     Load api-keys from DB; use first row for env (agent worker). No env fallback.
     """
+    import logging
+    _log = logging.getLogger("app.system_settings")
     database_url = os.environ.get("DATABASE_URL", "").strip()
     if not database_url:
+        _log.warning("DATABASE_URL not set; api-keys from DB will not be loaded (worker may lack DEEPGRAM/GROQ/CARTESIA keys).")
         return
     rows = asyncio.run(load_from_db_standalone(database_url))
     if not rows:
+        _log.warning("No rows from api-keys table; worker may lack API keys.")
         return
     first = rows[0]
     for k, v in first.items():
         if k and v:
             os.environ[k] = v
+    _log.info("Loaded api-keys from DB: %s", list(first.keys()))
     # Populate in-memory rows so any code that runs after can use get_*_keys_ordered
     global _api_keys_rows
     _api_keys_rows = rows

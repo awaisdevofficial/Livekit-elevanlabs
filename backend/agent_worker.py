@@ -83,6 +83,17 @@ def prewarm(proc: JobProcess):
 
 async def entrypoint(ctx: JobContext):
     logger.info("Agent job started room=%s", ctx.room.name)
+    # Log API key presence (no values) to debug STT/LLM/TTS failures
+    has_dg = bool((app_settings.DEEPGRAM_API_KEY or "").strip())
+    has_groq = bool((app_settings.GROQ_API_KEY or "").strip())
+    has_cart = bool((app_settings.CARTESIA_API_KEY or "").strip())
+    logger.info("API keys present: DEEPGRAM=%s GROQ=%s CARTESIA=%s", has_dg, has_groq, has_cart)
+    if not has_dg:
+        logger.error("DEEPGRAM_API_KEY missing. Set it in api-keys table (Supabase) and ensure DATABASE_URL is set for the worker.")
+    if not has_groq:
+        logger.error("GROQ_API_KEY missing. Set it in api-keys table (Supabase).")
+    if not has_cart:
+        logger.error("CARTESIA_API_KEY missing. Set it in api-keys table (Supabase).")
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
     participant = await ctx.wait_for_participant()
