@@ -355,132 +355,106 @@ export default function CallsPage() {
         subtitle="Select an agent and enter the number to call"
         size="md"
       >
-              <div className="space-y-4 -mt-2">
-
-              {!phoneNumbers?.length ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-white/70">
-                    Import your own number first to make and receive calls.
-                    Add phone credentials in Settings, then import your numbers.
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      className="btn-primary w-full"
-                      onClick={() => importNumbers.mutate()}
-                      disabled={importNumbers.isPending}
-                    >
-                      {importNumbers.isPending ? "Importing…" : "Import numbers"}
-                    </button>
-                    <Link href="/settings" onClick={() => setOutboundModal(false)}>
-                      <button type="button" className="btn-secondary w-full">
-                        Go to Settings → Integrations
-                      </button>
-                    </Link>
-                  </div>
-                  <div className="flex justify-end pt-2">
-                    <button type="button" className="btn-ghost" onClick={() => setOutboundModal(false)}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="form-label">Agent</label>
-                      <select
-                        value={outboundAgent}
-                        onChange={(e) => setOutboundAgent(e.target.value)}
-                        className="form-input"
-                      >
-                        <option value="">Select an agent</option>
-                        {(agents as any[])?.map((agent: any) => (
-                          <option key={agent.id} value={agent.id}>
-                            {agent.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {outboundAgent && (() => {
-                      const fromNumber = (phoneNumbers as any[])?.find(
-                        (n: any) => n.agent_id === outboundAgent
-                      );
-                      return (
-                        <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
-                          {fromNumber ? (
-                            <p className="text-sm text-white/70">
-                              Calling from{" "}
-                              <span className="font-mono font-medium text-white">
-                                {fromNumber.number}
-                              </span>
-                            </p>
-                          ) : (
-                            <p className="text-sm text-amber-400">
-                              This agent has no number assigned. Assign one in{" "}
-                              <Link href="/settings" className="underline font-medium text-[#4DFFCE]">
-                                Settings → Integrations
-                              </Link>
-                              .
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    <div>
-                      <label className="form-label">Phone number to call</label>
-                      <input
-                        type="tel"
-                        value={outboundNumber}
-                        onChange={(e) => setOutboundNumber(e.target.value)}
-                        placeholder="+1234567890"
-                        className="form-input"
-                      />
-                      <p className="text-xs text-white/65 mt-1">
-                        Include country code (e.g. +12025551234)
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-4">
-                    <button
-                      type="button"
-                      className="btn-secondary flex-1"
-                      onClick={() => setOutboundModal(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-primary flex-1"
-                      onClick={() => {
-                        if (!outboundAgent || !outboundNumber.trim()) {
-                          toast.error(
-                            "Select an agent and enter a phone number"
-                          );
-                          return;
-                        }
-                        const fromNumber = (phoneNumbers as any[])?.find(
-                          (n: any) => n.agent_id === outboundAgent
-                        );
-                        if (!fromNumber) {
-                          toast.error(
-                            "Assign a number to this agent in Settings → Integrations first."
-                          );
-                          return;
-                        }
-                        outboundCall.mutate({
-                          agent_id: outboundAgent,
-                          to_number: outboundNumber.trim(),
-                        });
-                      }}
-                      disabled={outboundCall.isPending}
-                    >
-                      {outboundCall.isPending ? "Starting…" : "Start Call"}
-                    </button>
-                  </div>
-                </>
-              )}
+        <div className="space-y-4 -mt-2">
+          {(agents as any[])?.length === 0 ? (
+            <p className="text-sm text-white/70 py-2">
+              Create an agent first in{" "}
+              <Link href="/agents/new" className="text-[#4DFFCE] hover:underline">
+                Agents
+              </Link>
+              .
+            </p>
+          ) : (
+            <>
+              <div>
+                <label className="form-label">Agent</label>
+                <select
+                  value={outboundAgent}
+                  onChange={(e) => setOutboundAgent(e.target.value)}
+                  className="form-input w-full"
+                >
+                  <option value="">Select an agent</option>
+                  {(agents as any[])?.map((agent: any) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </option>
+                  ))}
+                </select>
               </div>
+              {outboundAgent && (() => {
+                const numbersList = (phoneNumbers as any[]) ?? [];
+                const fromNumber = numbersList.find(
+                  (n: any) => String(n?.agent_id ?? "").toLowerCase() === String(outboundAgent).toLowerCase()
+                );
+                return (
+                  <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+                    {fromNumber ? (
+                      <p className="text-sm text-white/70">
+                        Calling from{" "}
+                        <span className="font-mono font-medium text-white">
+                          {fromNumber.number}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-white/60">
+                        Your connected number from Settings will be used. To assign this agent to a specific number, go to{" "}
+                        <Link href="/settings" className="underline font-medium text-[#4DFFCE]">
+                          Settings → Integrations
+                        </Link>
+                        .
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+              <div>
+                <label className="form-label">Phone number to call</label>
+                <input
+                  type="tel"
+                  value={outboundNumber}
+                  onChange={(e) => setOutboundNumber(e.target.value)}
+                  placeholder="+1234567890"
+                  className="form-input w-full"
+                />
+                <p className="text-xs text-white/65 mt-1">
+                  Include country code (e.g. +12025551234)
+                </p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  className="btn-secondary flex-1"
+                  onClick={() => setOutboundModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary flex-1"
+                  onClick={() => {
+                    if (!outboundAgent || !outboundNumber.trim()) {
+                      toast.error("Select an agent and enter a phone number");
+                      return;
+                    }
+                    outboundCall.mutate({
+                      agent_id: outboundAgent,
+                      to_number: outboundNumber.trim(),
+                    });
+                  }}
+                  disabled={!outboundAgent || !outboundNumber.trim() || outboundCall.isPending}
+                >
+                  {outboundCall.isPending ? "Starting…" : "Start Call"}
+                </button>
+              </div>
+            </>
+          )}
+          <p className="text-xs text-white/50 pt-2 border-t border-white/10">
+            Need to connect a phone?{" "}
+            <Link href="/settings" className="text-[#4DFFCE]/80 hover:underline">
+              Settings → Integrations
+            </Link>
+          </p>
+        </div>
       </Modal>
     </div>
   );
