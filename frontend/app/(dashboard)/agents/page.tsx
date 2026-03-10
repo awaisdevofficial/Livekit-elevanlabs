@@ -22,6 +22,15 @@ export default function AgentsPage() {
     enabled: !isLoading && !!((agents as any[])?.length > 0),
   });
 
+  const { data: phoneNumbers = [] } = useQuery({
+    queryKey: ["phone-numbers"],
+    queryFn: () =>
+      api.get("/v1/phone-numbers") as Promise<
+        { id: string; number: string; agent_id?: string; use_for?: string }[]
+      >,
+    enabled: !isLoading,
+  });
+
   const voiceNameById = useMemo(() => {
     const map: Record<string, string> = {};
     (voices as { id: string; name: string }[]).forEach((v) => {
@@ -29,6 +38,22 @@ export default function AgentsPage() {
     });
     return map;
   }, [voices]);
+
+  const numbersByAgentId = useMemo(() => {
+    const map: Record<string, { number: string; use_for: string }[]> = {};
+    (phoneNumbers as { id: string; number: string; agent_id?: string; use_for?: string }[]).forEach(
+      (pn) => {
+        const aid = String(pn.agent_id ?? "");
+        if (!aid) return;
+        if (!map[aid]) map[aid] = [];
+        map[aid].push({
+          number: pn.number,
+          use_for: pn.use_for ?? "both",
+        });
+      }
+    );
+    return map;
+  }, [phoneNumbers]);
 
   const [search, setSearch] = useState("");
   const [testingAgentId, setTestingAgentId] = useState<string | null>(null);
@@ -192,6 +217,10 @@ export default function AgentsPage() {
               is_active={agent.is_active}
               call_count={agent.call_count ?? 0}
               system_prompt={agent.system_prompt}
+              transfer_number={
+                agent.transfer_number ?? agent.tools_config?.transfer_number ?? undefined
+              }
+              linkedNumbers={numbersByAgentId[String(agent.id)] ?? []}
               onTestCall={() => setTestingAgentId(agent.id)}
             />
           ))}

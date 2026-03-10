@@ -2,12 +2,19 @@
 
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Trash2, Copy, Pencil, Phone, Beaker } from "lucide-react";
+import { MoreVertical, Trash2, Copy, Pencil, Phone, Beaker, PhoneIncoming, PhoneOutgoing } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 
 import { api } from "@/lib/api";
 import { cn } from "@/components/lib-utils";
+
+export type LinkedNumberUseFor = "inbound" | "outbound" | "both";
+
+interface LinkedNumber {
+  number: string;
+  use_for: string;
+}
 
 interface AgentCardProps {
   id: string;
@@ -18,7 +25,15 @@ interface AgentCardProps {
   is_active?: boolean;
   call_count?: number;
   system_prompt?: string | null;
+  transfer_number?: string | null;
+  linkedNumbers?: LinkedNumber[];
   onTestCall?: () => void;
+}
+
+function useForLabel(use_for: string): string {
+  if (use_for === "inbound") return "Inbound";
+  if (use_for === "outbound") return "Outbound";
+  return "In/Out";
 }
 
 export function AgentCard({
@@ -30,6 +45,8 @@ export function AgentCard({
   is_active = true,
   call_count = 0,
   system_prompt,
+  transfer_number,
+  linkedNumbers = [],
   onTestCall,
 }: AgentCardProps) {
   const qc = useQueryClient();
@@ -170,15 +187,44 @@ export function AgentCard({
         {descriptionDisplay}
       </p>
 
-      {/* Meta: voice + calls */}
-      <div className="flex flex-wrap items-center gap-3 mb-5 text-xs">
-        <span className="rounded-lg bg-white/5 px-2.5 py-1.5 text-white/70 border border-white/5">
-          Voice: {voiceLabel}
-        </span>
-        <span className="flex items-center gap-1.5 text-white/50">
-          <Phone size={12} />
-          {call_count.toLocaleString()} calls
-        </span>
+      {/* Meta: voice, numbers, transfer, calls */}
+      <div className="space-y-2 mb-5 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-lg bg-white/5 px-2.5 py-1.5 text-white/70 border border-white/5">
+            Voice: {voiceLabel}
+          </span>
+          <span className="flex items-center gap-1.5 text-white/50">
+            <Phone size={12} />
+            {call_count.toLocaleString()} calls
+          </span>
+        </div>
+        {linkedNumbers.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {linkedNumbers.map((ln, idx) => (
+              <span
+                key={`${ln.number}-${idx}`}
+                className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2 py-1 text-white/60 border border-white/5"
+                title={`${ln.number} (${useForLabel(ln.use_for)})`}
+              >
+                {ln.use_for === "inbound" ? (
+                  <PhoneIncoming size={11} className="text-emerald-400/80" />
+                ) : ln.use_for === "outbound" ? (
+                  <PhoneOutgoing size={11} className="text-blue-400/80" />
+                ) : (
+                  <Phone size={11} className="text-white/50" />
+                )}
+                <span className="font-mono truncate max-w-[100px]">{ln.number}</span>
+                <span className="text-[10px] uppercase text-white/40">{useForLabel(ln.use_for)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        {transfer_number?.trim() && (
+          <div className="flex items-center gap-1.5 text-white/50">
+            <span className="text-[10px] uppercase text-white/40">Transfer:</span>
+            <span className="font-mono truncate">{transfer_number.trim()}</span>
+          </div>
+        )}
       </div>
 
       {/* Actions */}
