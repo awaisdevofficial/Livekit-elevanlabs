@@ -4,7 +4,7 @@ from typing import List, Optional
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,14 +47,30 @@ async def list_numbers(
     except ProgrammingError as e:
         msg = str(e).lower()
         if "origination_uri" in msg or "column" in msg or "does not exist" in msg:
-            logger.warning("phone_numbers schema may be outdated: %s", e)
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Database migration required. On the server run: "
-                    "cd /home/ubuntu/resona.ai && bash scripts/run-migrate-phone-numbers-docker.sh"
-                ),
-            ) from e
+            logger.warning("phone_numbers schema may be outdated, attempting to add use_for: %s", e)
+            try:
+                await db.execute(
+                    text(
+                        "ALTER TABLE phone_numbers ADD COLUMN IF NOT EXISTS use_for VARCHAR(20) NOT NULL DEFAULT 'both'"
+                    )
+                )
+                await db.commit()
+                result = await db.execute(
+                    select(PhoneNumber).where(
+                        PhoneNumber.user_id == user.id,
+                        PhoneNumber.is_active.is_(True),
+                    )
+                )
+                return result.scalars().all()
+            except Exception as fix_err:
+                logger.warning("Self-heal migration failed: %s", fix_err)
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        "Database migration required. On the server run: "
+                        "cd /home/ubuntu/resona.ai && bash scripts/run-migrate-phone-numbers-docker.sh"
+                    ),
+                ) from e
         raise
 
 
