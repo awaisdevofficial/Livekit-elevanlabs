@@ -17,6 +17,10 @@ if os.environ.get("ENV") == "production":
     if _prod_env.exists():
         load_dotenv(_prod_env)
 
+# Configure logging early so system_settings and entrypoint logs are visible
+import logging as _logging
+_logging.basicConfig(level=_logging.INFO)
+
 # Load API keys from DB (system_settings) into env so config sees them
 from app.system_settings import run_load_system_settings_into_env
 run_load_system_settings_into_env()
@@ -57,7 +61,6 @@ from livekit.agents.voice import room_io as voice_room_io
 from livekit.plugins import silero
 
 logger = logging.getLogger("resona-agent")
-logging.basicConfig(level=logging.INFO)
 
 # Log response latency (user final transcript -> agent first speech). Set to "0" or "false" to disable.
 LOG_LATENCY = os.environ.get("LOG_LATENCY", "1").lower() not in ("0", "false", "no")
