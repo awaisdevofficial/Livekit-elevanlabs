@@ -30,7 +30,7 @@ interface AgentCardProps {
   onTestCall?: () => void;
 }
 
-function useForLabel(use_for: string): string {
+function formatUseFor(use_for: string): string {
   if (use_for === "inbound") return "Inbound";
   if (use_for === "outbound") return "Outbound";
   return "In/Out";
@@ -204,7 +204,7 @@ export function AgentCard({
               <span
                 key={`${ln.number}-${idx}`}
                 className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2 py-1 text-white/60 border border-white/5"
-                title={`${ln.number} (${useForLabel(ln.use_for)})`}
+                title={`${ln.number} (${formatUseFor(ln.use_for)})`}
               >
                 {ln.use_for === "inbound" ? (
                   <PhoneIncoming size={11} className="text-emerald-400/80" />
@@ -214,7 +214,7 @@ export function AgentCard({
                   <Phone size={11} className="text-white/50" />
                 )}
                 <span className="font-mono truncate max-w-[100px]">{ln.number}</span>
-                <span className="text-[10px] uppercase text-white/40">{useForLabel(ln.use_for)}</span>
+                <span className="text-[10px] uppercase text-white/40">{formatUseFor(ln.use_for)}</span>
               </span>
             ))}
           </div>
