@@ -20,10 +20,13 @@ router = APIRouter()
 ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
 
 
-def _elevenlabs_headers(api_key: str) -> dict:
+def _elevenlabs_headers(api_key: str, json_content_type: bool = True) -> dict:
     if not api_key:
         return {}
-    return {"xi-api-key": api_key, "Content-Type": "application/json"}
+    h = {"xi-api-key": api_key}
+    if json_content_type:
+        h["Content-Type"] = "application/json"
+    return h
 
 
 def _enrich_elevenlabs_voice(raw: dict) -> dict:
@@ -140,14 +143,13 @@ async def add_voice_clone(
     name = name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Voice name is required.")
-    # Ensure voice name is valid UTF-8; restrict to printable ASCII to avoid ElevenLabs invalid_unicode errors
+    # Restrict to ASCII-only so ElevenLabs never sees invalid UTF-8 (name, filename, content-type)
     try:
         name_clean = name.encode("utf-8", errors="replace").decode("utf-8").strip() or "Voice"
         name_clean = re.sub(r"[^\x20-\x7e]", "", name_clean).strip() or "Voice"
     except Exception:
         name_clean = "Voice"
-    name_bytes = name_clean.encode("utf-8")
-    # Build multipart for ElevenLabs: name (explicit UTF-8) + files (ASCII filenames only)
+    # Build multipart: name (ASCII str) + files with ASCII filename and fixed content-type only
     file_contents = []
     for i, f in enumerate(files):
         content = await f.read()
@@ -159,20 +161,20 @@ async def add_voice_clone(
         if ext not in ("mp3", "wav", "m4a", "ogg", "flac", "webm"):
             ext = "mp3"
         safe_filename = f"audio_{i + 1}.{ext}"
-        file_contents.append((safe_filename, content, f.content_type or "audio/mpeg"))
+        # Use fixed ASCII content-type; do not forward client Content-Type (can cause invalid_unicode)
+        file_contents.append((safe_filename, content, "application/octet-stream"))
     if not file_contents:
         raise HTTPException(status_code=400, detail="At least one audio file is required.")
     last_err: Exception | None = None
     for api_key in keys:
         try:
             async with httpx.AsyncClient(timeout=60) as client:
-                # Send name as UTF-8 bytes with explicit charset so multipart is valid
-                parts = [("name", (None, name_bytes, "text/plain; charset=utf-8"))]
-                for filename, content, ctype in file_contents:
-                    parts.append(("files", (filename, content, ctype)))
+                parts = [("name", (None, name_clean))]
+                for filename, content, _ in file_contents:
+                    parts.append(("files", (filename, content, "application/octet-stream")))
                 resp = await client.post(
                     f"{ELEVENLABS_API_BASE}/voices/add",
-                    headers=_elevenlabs_headers(api_key),
+                    headers=_elevenlabs_headers(api_key, json_content_type=False),
                     files=parts,
                 )
             if resp.status_code == 200:

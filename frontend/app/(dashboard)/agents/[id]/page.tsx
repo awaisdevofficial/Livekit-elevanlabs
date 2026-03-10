@@ -7,7 +7,6 @@ import { Controller, useForm } from "react-hook-form"
 import { ArrowLeft, BookOpen, Play, Loader2, Phone, Save, Settings, Trash2 } from "lucide-react"
 import toast from "react-hot-toast"
 
-import { PageHeader } from "@/components/shared/PageHeader"
 import { TestCallPanel } from "@/components/agents/TestCallPanel"
 import { api, API_BASE_URL, getAuthToken } from "@/lib/api"
 import { MAX_FIRST_MESSAGE_LEN, MAX_SYSTEM_PROMPT_LEN } from "@/lib/agentLimits"
@@ -211,20 +210,22 @@ export default function AgentEditPage({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-[#4DFFCE]" size={24} />
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3">
+        <Loader2 className="animate-spin text-[#4DFFCE]" size={28} />
+        <p className="text-sm text-white/60">Loading agent...</p>
       </div>
     )
   }
 
   if (!agent) {
     return (
-      <div className="text-center py-16">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-12 text-center max-w-md mx-auto">
         <p className="text-sm text-white/70">Agent not found.</p>
         <button
           onClick={() => router.push("/agents")}
-          className="mt-4 text-sm text-[#4DFFCE] hover:underline"
+          className="mt-4 inline-flex items-center gap-1.5 text-sm text-[#4DFFCE] hover:underline"
         >
+          <ArrowLeft size={14} />
           Back to agents
         </button>
       </div>
@@ -243,24 +244,38 @@ export default function AgentEditPage({
 
   return (
     <>
-      <div>
-        <PageHeader
-          title={displayName}
-          subtitle="Edit your agent's configuration and test it live."
-          actions={
-            <div className="flex items-center gap-2">
+      <div className="min-h-[80vh]">
+        {/* Hero header */}
+        <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent p-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="min-w-0">
               <button
                 type="button"
                 onClick={() => router.push("/agents")}
-                className="btn-secondary flex items-center gap-1.5 px-3 py-2 text-sm"
+                className="inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-[#4DFFCE] transition-colors mb-2"
               >
                 <ArrowLeft size={14} />
-                Back
+                Agents
+              </button>
+              <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight truncate">
+                {displayName || "Edit agent"}
+              </h1>
+              <p className="text-sm text-white/60 mt-0.5">
+                Configure behaviour, voice, and knowledge. Test live before saving.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => router.push("/agents")}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/15 bg-white/5 text-sm font-medium text-white/90 hover:bg-white/10 transition-colors"
+              >
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={() => setTestPanelOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 border border-[#4DFFCE]/30 bg-[#4DFFCE]/10 text-sm font-medium text-[#4DFFCE] rounded-full hover:bg-[#4DFFCE]/20 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#4DFFCE]/40 bg-[#4DFFCE]/15 text-sm font-medium text-[#4DFFCE] hover:bg-[#4DFFCE]/25 transition-colors"
               >
                 <Phone size={14} />
                 Test Agent
@@ -269,7 +284,7 @@ export default function AgentEditPage({
                 type="button"
                 onClick={form.handleSubmit((v) => save(v))}
                 disabled={saving}
-                className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#4DFFCE] text-[#07080A] text-sm font-semibold hover:bg-[#5affd6] transition-colors disabled:opacity-60 disabled:pointer-events-none"
               >
                 {saving ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -279,18 +294,19 @@ export default function AgentEditPage({
                 Save changes
               </button>
             </div>
-          }
-        />
+          </div>
+        </div>
 
-        <div className="mt-4 flex gap-2 border-b border-white/10 mb-4">
+        {/* Tabs */}
+        <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/10 w-fit mb-6">
           <button
             type="button"
             onClick={() => setActiveTab("config")}
             className={cn(
-              "flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors",
+              "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
               activeTab === "config"
-                ? "border-[#4DFFCE] text-[#4DFFCE] bg-[#4DFFCE]/10"
-                : "border-transparent text-white/60 hover:text-white hover:bg-white/5"
+                ? "bg-white/10 text-white shadow-sm"
+                : "text-white/60 hover:text-white hover:bg-white/5"
             )}
           >
             <Settings size={16} />
@@ -300,10 +316,10 @@ export default function AgentEditPage({
             type="button"
             onClick={() => setActiveTab("knowledge")}
             className={cn(
-              "flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors",
+              "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
               activeTab === "knowledge"
-                ? "border-[#4DFFCE] text-[#4DFFCE] bg-[#4DFFCE]/10"
-                : "border-transparent text-white/60 hover:text-white hover:bg-white/5"
+                ? "bg-white/10 text-white shadow-sm"
+                : "text-white/60 hover:text-white hover:bg-white/5"
             )}
           >
             <BookOpen size={16} />
@@ -314,12 +330,16 @@ export default function AgentEditPage({
         {activeTab === "knowledge" ? (
           <KnowledgeBaseTab agentId={params.id} />
         ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)] gap-6 items-start">
-          <form className="space-y-6 glass-panel p-6">
-            <section className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.35fr)] gap-6 items-start">
+          <form className="space-y-6">
+            <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/10 bg-white/[0.03]">
+                <h2 className="text-sm font-semibold text-white tracking-tight">Identity</h2>
+                <p className="text-xs text-white/60 mt-0.5">Name and description for your agent.</p>
+              </div>
+              <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h2 className="text-sm font-semibold text-white">Identity</h2>
                   <div className="space-y-2">
                     <label className="form-label">Agent name</label>
                     <input
@@ -428,10 +448,17 @@ export default function AgentEditPage({
                   </div>
                 </div>
               </div>
+              </div>
+            </section>
 
+            <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/10 bg-white/[0.03]">
+                <h2 className="text-sm font-semibold text-white tracking-tight">Voice & behaviour</h2>
+                <p className="text-xs text-white/60 mt-0.5">Speaking voice, language, and call settings.</p>
+              </div>
+              <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h2 className="text-sm font-semibold text-white">Voice</h2>
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 rounded-full bg-[#4DFFCE]/20 text-[#4DFFCE] flex items-center justify-center text-xs font-semibold">
@@ -483,9 +510,7 @@ export default function AgentEditPage({
                 </div>
 
                 <div className="space-y-4">
-                  <h2 className="text-sm font-semibold text-white">
-                    Call behaviour
-                  </h2>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">Call behaviour</h3>
                   <div className="space-y-2">
                     <label className="form-label">Language</label>
                     <Controller
@@ -539,69 +564,57 @@ export default function AgentEditPage({
                   </div>
                 </div>
               </div>
-
-              <section className="space-y-4 pt-4 border-t border-white/10">
-                <h2 className="text-sm font-semibold text-white">Call Transfer</h2>
-                <div className="space-y-2">
-                  <label className="form-label">
-                    Transfer to number{" "}
-                    <span className="text-white/70 font-normal">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    {...form.register("transfer_number")}
-                    placeholder="+1234567890"
-                    className="form-input"
-                  />
-                  <p className="text-[11px] text-white/70">
-                    When the caller asks to speak to a human, the agent will transfer to
-                    this number.
-                  </p>
-                </div>
-              </section>
+              </div>
             </section>
 
-            <div className="flex items-center justify-end gap-3 pt-2 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => router.push("/agents")}
-                className="btn-secondary px-4 py-2 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={form.handleSubmit((v) => save(v))}
-                disabled={saving}
-                className="btn-primary px-4 py-2 text-sm disabled:opacity-60"
-              >
-                {saving ? "Saving..." : "Save changes"}
-              </button>
-            </div>
+            <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/10 bg-white/[0.03]">
+                <h2 className="text-sm font-semibold text-white tracking-tight">Call Transfer</h2>
+                <p className="text-xs text-white/60 mt-0.5">Optional number for human handoff.</p>
+              </div>
+              <div className="p-6 space-y-2">
+                <label className="form-label">
+                  Transfer to number{" "}
+                  <span className="text-white/50 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  {...form.register("transfer_number")}
+                  placeholder="+1234567890"
+                  className="form-input max-w-md"
+                />
+                <p className="text-[11px] text-white/60">
+                  When the caller asks to speak to a human, the agent will transfer to this number.
+                </p>
+              </div>
+            </section>
           </form>
 
           <aside className="lg:sticky lg:top-8 flex flex-col gap-5 min-w-0">
-            <div className="glass-panel p-5 flex flex-col gap-5">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-white tracking-tight">
-                    Agent preview
-                  </h2>
-                  <p className="text-xs text-white/70 mt-0.5">
-                    See how your agent will sound and introduce itself.
-                  </p>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden flex flex-col gap-0">
+              <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03]">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-white tracking-tight">
+                      Live preview
+                    </h2>
+                    <p className="text-xs text-white/60 mt-0.5">
+                      How your agent will sound and respond.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTestPanelOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-[#4DFFCE]/40 bg-[#4DFFCE]/15 text-xs font-semibold text-[#4DFFCE] hover:bg-[#4DFFCE]/25 transition-colors shrink-0"
+                  >
+                    <Phone size={13} />
+                    Test Agent
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setTestPanelOpen(true)}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full border border-[#4DFFCE]/30 bg-[#4DFFCE]/10 text-xs font-semibold text-[#4DFFCE] hover:bg-[#4DFFCE]/20 transition-colors shrink-0"
-                >
-                  <Phone size={13} />
-                  Test Agent
-                </button>
               </div>
 
-              <div className="space-y-4 rounded-xl bg-white/[0.03] border border-dashed border-white/10 px-4 py-4">
+              <div className="p-5 space-y-4">
+              <div className="space-y-4 rounded-xl bg-white/[0.03] border border-white/10 px-4 py-4">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
@@ -644,15 +657,16 @@ export default function AgentEditPage({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 pt-1 border-t border-white/10">
-                <p className="text-xs text-white/70">Changes here are autosynced to your next test call.</p>
+              <div className="flex flex-col gap-3 pt-3 border-t border-white/10">
+                <p className="text-[11px] text-white/60">Changes sync to your next test call.</p>
                 <button
                   type="button"
                   onClick={() => setVoiceLibraryOpen(true)}
-                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#4DFFCE]/50 text-xs font-medium text-[#4DFFCE] hover:bg-[#4DFFCE]/10 transition-colors w-full sm:w-auto"
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-[#4DFFCE]/50 text-xs font-medium text-[#4DFFCE] hover:bg-[#4DFFCE]/10 transition-colors w-full sm:w-auto"
                 >
                   Change voice
                 </button>
+              </div>
               </div>
             </div>
           </aside>
@@ -728,11 +742,12 @@ function KnowledgeBaseTab({ agentId }: { agentId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="glass-panel p-6">
-        <h2 className="text-sm font-semibold text-white mb-4">
-          Add Knowledge
-        </h2>
-        <div className="space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/10 bg-white/[0.03]">
+          <h2 className="text-sm font-semibold text-white tracking-tight">Add knowledge</h2>
+          <p className="text-xs text-white/60 mt-0.5">Give your agent reference text it can use in conversations.</p>
+        </div>
+        <div className="p-6 space-y-4">
           <div>
             <label className="form-label">Name</label>
             <input
@@ -757,34 +772,39 @@ function KnowledgeBaseTab({ agentId }: { agentId: string }) {
             type="button"
             onClick={handleAdd}
             disabled={createMutation.isPending || !name.trim() || !content.trim()}
-            className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4DFFCE] text-[#07080A] text-sm font-semibold hover:bg-[#5affd6] transition-colors disabled:opacity-50 disabled:pointer-events-none"
           >
-            {createMutation.isPending ? "Adding..." : "Add"}
+            {createMutation.isPending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : null}
+            {createMutation.isPending ? "Adding..." : "Add entry"}
           </button>
         </div>
       </div>
 
-      <div className="glass-panel p-6">
-        <h2 className="text-sm font-semibold text-white mb-4">
-          Existing entries
-        </h2>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/10 bg-white/[0.03]">
+          <h2 className="text-sm font-semibold text-white tracking-tight">Existing entries</h2>
+          <p className="text-xs text-white/60 mt-0.5">{entries.length} {entries.length === 1 ? "entry" : "entries"} in this agent&apos;s knowledge base.</p>
+        </div>
+        <div className="p-6">
         {isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-white/70">
+          <div className="flex items-center gap-2 text-sm text-white/60 py-8">
             <Loader2 size={16} className="animate-spin" />
             Loading...
           </div>
         ) : !entries.length ? (
-          <p className="text-sm text-white/70">No knowledge base entries yet.</p>
+          <p className="text-sm text-white/60 py-8">No knowledge base entries yet. Add one above.</p>
         ) : (
           <ul className="space-y-3">
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className="flex items-start justify-between gap-4 rounded-lg border border-white/10 p-3 bg-white/[0.03]"
+                className="flex items-start justify-between gap-4 rounded-xl border border-white/10 p-4 bg-white/[0.03] hover:bg-white/[0.05] transition-colors"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-white">{entry.name}</p>
-                  <p className="text-xs text-white/70 mt-0.5 line-clamp-2">
+                  <p className="text-xs text-white/60 mt-0.5 line-clamp-2">
                     {entry.content}
                   </p>
                 </div>
@@ -793,7 +813,8 @@ function KnowledgeBaseTab({ agentId }: { agentId: string }) {
                   onClick={() => {
                     if (confirm("Delete this entry?")) deleteMutation.mutate(entry.id)
                   }}
-                  className="p-1.5 rounded-lg text-white/70 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                  className="p-2 rounded-lg text-white/50 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                  aria-label="Delete entry"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -801,6 +822,7 @@ function KnowledgeBaseTab({ agentId }: { agentId: string }) {
             ))}
           </ul>
         )}
+        </div>
       </div>
     </div>
   )
