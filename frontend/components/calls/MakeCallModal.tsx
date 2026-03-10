@@ -69,12 +69,6 @@ export function MakeCallModal({ isOpen, onClose }: Props) {
       toast.error("Select an agent");
       return;
     }
-    if (!fromNumber) {
-      toast.error(
-        "This agent has no phone number. Assign one in Settings → Integrations."
-      );
-      return;
-    }
     makeOutboundCall.mutate({ agent_id: agentId, to_number: num });
   };
 

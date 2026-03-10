@@ -8,6 +8,12 @@ from app.database import Base
 
 
 class PhoneNumber(Base):
+    """
+    User phone numbers (from Twilio). Matches public.phone_numbers:
+    id, user_id, agent_id, number, twilio_sid, origination_uri, termination_uri,
+    friendly_name, capabilities, is_active, monthly_cost, purchased_at, created_at.
+    agent_id links to agents(id) for "which agent uses this number".
+    """
     __tablename__ = "phone_numbers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
