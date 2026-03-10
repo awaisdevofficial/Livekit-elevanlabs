@@ -28,8 +28,20 @@ import time
 from datetime import datetime
 
 import httpx
+import redis.asyncio as aioredis
 
 from app.config import settings as app_settings
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+redis_client = aioredis.from_url(REDIS_URL)
+
+
+async def publish_event(room_id: str, event: dict) -> None:
+    """Publish a live call event to Redis for SSE subscribers."""
+    try:
+        await redis_client.publish(f"call:{room_id}", json.dumps(event))
+    except Exception as e:
+        logger.warning("Failed to publish event to Redis: %s", e)
 from app.prompts import get_full_system_prompt
 from livekit.agents import (
     AutoSubscribe,
@@ -148,6 +160,10 @@ async def entrypoint(ctx: JobContext):
 
     transcript_lines: list[dict] = []
     start_time = time.time()
+    room_id = ctx.room.name or ""
+    asyncio.ensure_future(
+        publish_event(room_id, {"type": "state", "state": "listening"})
+    )
 
     async def send_transcript(role: str, text: str):
         try:
@@ -157,6 +173,19 @@ async def entrypoint(ctx: JobContext):
             )
         except Exception as e:
             logger.warning(f"Failed to send transcript: {e}")
+        # Redis for live dashboard SSE (speaker key for frontend)
+        try:
+            await publish_event(
+                room_id,
+                {
+                    "type": "transcript",
+                    "speaker": "user" if role == "user" else "agent",
+                    "text": text,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to publish transcript to Redis: %s", e)
 
     # STT — ElevenLabs Scribe (best real-time: low latency, high accuracy)
     elevenlabs_key = (app_settings.ELEVENLABS_API_KEY or "").strip()
@@ -292,6 +321,9 @@ async def entrypoint(ctx: JobContext):
                 }
             )
             asyncio.ensure_future(send_transcript("user", text))
+            asyncio.ensure_future(
+                publish_event(room_id, {"type": "state", "state": "thinking"})
+            )
 
     @session.on("agent_speech_committed")
     def on_agent_speech(text: str):
@@ -306,6 +338,9 @@ async def entrypoint(ctx: JobContext):
                 }
             )
             asyncio.ensure_future(send_transcript("agent", cleaned))
+            asyncio.ensure_future(
+                publish_event(room_id, {"type": "state", "state": "speaking"})
+            )
 
     @session.on("session_stopped")
     def on_session_stopped():
@@ -330,12 +365,24 @@ async def entrypoint(ctx: JobContext):
             if not configured_transfer_number:
                 return "Transfer is currently unavailable."
             try:
-                payload = json.dumps({"type": "transfer", "to": configured_transfer_number})
-                await room.local_participant.publish_data(
-                    payload.encode(), reliable=True
+                await publish_event(
+                    room_id,
+                    {
+                        "type": "transfer_requested",
+                        "to_number": configured_transfer_number,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
                 )
+                api_base = os.environ.get("API_BASE_URL", "http://localhost:8000")
+                internal_secret = os.environ.get("INTERNAL_SECRET", "")
+                async with httpx.AsyncClient(timeout=10) as client:
+                    await client.post(
+                        f"{api_base}/internal/live-calls/transfer",
+                        json={"room_id": room_id, "to_number": configured_transfer_number},
+                        headers={"X-Internal-Secret": internal_secret},
+                    )
             except Exception as e:
-                logger.warning(f"Failed to publish transfer: {e}")
+                logger.warning("Failed to publish or execute transfer: %s", e)
                 return "Transfer is currently unavailable."
             return "Transferring you now. Please hold."
 

@@ -40,6 +40,7 @@ class Agent(Base):
     silence_timeout = Column(Integer, default=30)
     max_duration = Column(Integer, default=3600)
     tools_config = Column(JSONB, default=dict)
+    transfer_number = Column(String(20), nullable=True)  # E.164 for call transfer
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

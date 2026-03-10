@@ -115,7 +115,7 @@ export default function AgentEditPage({
         silence_timeout: agent.silence_timeout || 30,
         max_duration: agent.max_duration || 3600,
         agent_speaks_first: agent.tools_config?.agent_speaks_first ?? true,
-        transfer_number: agent.tools_config?.transfer_number ?? "",
+        transfer_number: agent.transfer_number ?? agent.tools_config?.transfer_number ?? "",
       })
     }
   }, [agent, form])
@@ -149,6 +149,7 @@ export default function AgentEditPage({
         ...FIXED_DEFAULTS,
         ...values,
         tts_provider: values.tts_provider || FIXED_DEFAULTS.tts_provider,
+        transfer_number: values.transfer_number || undefined,
         tools_config: {
           agent_speaks_first: values.agent_speaks_first,
           transfer_number: values.transfer_number || undefined,
@@ -167,7 +168,7 @@ export default function AgentEditPage({
         max_duration: updatedAgent.max_duration || 3600,
         agent_speaks_first:
           updatedAgent.tools_config?.agent_speaks_first ?? true,
-        transfer_number: updatedAgent.tools_config?.transfer_number ?? "",
+        transfer_number: updatedAgent.transfer_number ?? updatedAgent.tools_config?.transfer_number ?? "",
       })
       queryClient.invalidateQueries({ queryKey: ["agents"] })
       queryClient.invalidateQueries({ queryKey: ["agent", params.id] })

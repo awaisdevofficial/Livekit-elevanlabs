@@ -13,6 +13,7 @@ from app.routers import (
     calls,
     internal_users,
     knowledge_base,
+    live_calls,
     phone_numbers,
     settings as settings_router,
     telephony,
@@ -62,6 +63,12 @@ app.include_router(calls.router, prefix="/v1/calls", tags=["Calls"])
 app.include_router(
     calls.internal_router,
     prefix="/internal/calls",
+    tags=["Internal"],
+)
+app.include_router(live_calls.router, prefix="/v1", tags=["Live Calls"])
+app.include_router(
+    live_calls.internal_router,
+    prefix="/internal/live-calls",
     tags=["Internal"],
 )
 app.include_router(

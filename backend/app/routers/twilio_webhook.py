@@ -14,6 +14,7 @@ import json
 import os
 import uuid
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import PlainTextResponse
 from livekit import api as livekit_api
@@ -87,7 +88,7 @@ async def handle_inbound(request: Request, db: AsyncSession = Depends(get_db)):
         "max_duration": int(agent.max_duration or 3600),
         "call_id": str(call_id),
         "agent_speaks_first": agent.tools_config.get("agent_speaks_first", True) if agent.tools_config else True,
-        "transfer_number": agent.tools_config.get("transfer_number", "") if agent.tools_config else "",
+        "transfer_number": (getattr(agent, "transfer_number", None) or "") or (agent.tools_config.get("transfer_number", "") if agent.tools_config else ""),
         "knowledge_base": knowledge_base,
     })
 
@@ -105,6 +106,15 @@ async def handle_inbound(request: Request, db: AsyncSession = Depends(get_db)):
     )
     db.add(call)
     await db.commit()
+
+    # Store call SID in Redis for live transfer by room_id
+    try:
+        redis_url = getattr(settings, "REDIS_URL", "redis://redis:6379/0")
+        r = aioredis.from_url(redis_url)
+        await r.set(f"call_sid:{room_name}", twilio_sid, ex=3600)
+        await r.aclose()
+    except Exception:
+        pass
 
     # Create LiveKit room with metadata
     async with livekit_api.LiveKitAPI(

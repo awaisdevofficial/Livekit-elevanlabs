@@ -103,6 +103,7 @@ async def update_agent(
         "silence_timeout",
         "max_duration",
         "tools_config",
+        "transfer_number",
         "is_active",
     ]
     for field, value in body.items():
@@ -234,7 +235,7 @@ async def _create_web_call_token_impl(
         "agent_speaks_first": agent.tools_config.get("agent_speaks_first", True)
         if agent.tools_config
         else True,
-        "transfer_number": (agent.tools_config or {}).get("transfer_number", ""),
+        "transfer_number": (getattr(agent, "transfer_number", None) or "") or (agent.tools_config or {}).get("transfer_number", ""),
         "knowledge_base": knowledge_base_for_room,
     }
 

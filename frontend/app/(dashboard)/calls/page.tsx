@@ -313,13 +313,25 @@ export default function CallsPage() {
                           <CallStatusBadge status={call.status} />
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setSelected(call)}
-                            className="btn-secondary text-sm py-1.5 px-3"
-                          >
-                            View
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            {(call.status === "ringing" ||
+                              call.status === "in_progress") &&
+                              call.livekit_room && (
+                                <Link
+                                  href={`/live-calls/${call.livekit_room}`}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/40 transition-colors"
+                                >
+                                  🔴 Monitor
+                                </Link>
+                              )}
+                            <button
+                              type="button"
+                              onClick={() => setSelected(call)}
+                              className="btn-secondary text-sm py-1.5 px-3"
+                            >
+                              View
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

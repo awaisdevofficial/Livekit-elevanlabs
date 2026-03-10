@@ -38,6 +38,7 @@ class AgentCreate(BaseModel):
     silence_timeout: int = Field(30, ge=5, le=300)
     max_duration: int = Field(3600, ge=60, le=14400)
     tools_config: dict[str, Any] = {}
+    transfer_number: Optional[str] = None
 
     @field_validator("name")
     @classmethod
@@ -114,6 +115,7 @@ class AgentResponse(BaseModel):
     silence_timeout: int
     max_duration: int
     tools_config: dict
+    transfer_number: Optional[str]
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime]

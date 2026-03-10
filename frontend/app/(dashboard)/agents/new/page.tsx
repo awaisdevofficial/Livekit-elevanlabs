@@ -65,6 +65,7 @@ interface AgentFormValues {
   silence_timeout: number
   max_duration: number
   agent_speaks_first: boolean
+  transfer_number: string
 }
 
 export default function NewAgentPage() {
@@ -129,7 +130,11 @@ export default function NewAgentPage() {
         ...FIXED_DEFAULTS,
         ...values,
         tts_provider: values.tts_provider ?? FIXED_DEFAULTS.tts_provider,
-        tools_config: { agent_speaks_first: values.agent_speaks_first },
+        transfer_number: values.transfer_number || undefined,
+        tools_config: {
+          agent_speaks_first: values.agent_speaks_first,
+          transfer_number: values.transfer_number || undefined,
+        },
       }),
     onSuccess: (agent: any) => {
       toast.success("Agent created")
@@ -338,6 +343,20 @@ export default function NewAgentPage() {
                   </div>
                   <p className="text-[11px] text-white/70">
                     Choose whether the agent greets the caller or waits for them to speak first.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="form-label block text-xs">
+                    Transfer number (optional)
+                  </label>
+                  <input
+                    type="tel"
+                    {...form.register("transfer_number")}
+                    placeholder="+1234567890"
+                    className="form-input"
+                  />
+                  <p className="text-[11px] text-white/70">
+                    Number to transfer calls to when the user asks for a human or transfer.
                   </p>
                 </div>
               </div>
