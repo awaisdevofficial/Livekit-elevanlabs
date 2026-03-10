@@ -35,5 +35,17 @@ if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]
   echo "Set them in .env or frontend/.env.production in project root, or export before running this script."
 fi
 
+# Frontend Dockerfile expects root .env for COPY; create from exports if missing (e.g. after fresh clone)
+if [ ! -f .env ]; then
+  cat > .env << ENVFILE
+NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
+NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-}
+NEXT_PUBLIC_ORIGINATION_URI=${NEXT_PUBLIC_ORIGINATION_URI:-}
+NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
+NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+ENVFILE
+  echo "Created root .env for frontend build."
+fi
+
 docker-compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" --env-file backend/.env.production up -d --build
 echo "=== Done. Check: docker ps ==="
